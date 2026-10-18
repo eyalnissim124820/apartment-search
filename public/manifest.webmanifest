@@ -1,0 +1,11 @@
+{
+  "name": "מוצאים בית",
+  "short_name": "מוצאים בית",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ECEDF3",
+  "theme_color": "#ECEDF3",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

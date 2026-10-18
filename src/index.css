@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-tap-highlight-color: transparent; }
+  body {
+    @apply bg-mist text-ink font-sans antialiased;
+    background-image: radial-gradient(120% 60% at 50% 0%, #F7F7FB 0%, #ECEDF3 60%);
+    background-attachment: fixed;
+    min-height: 100dvh;
+    overscroll-behavior-y: none;
+  }
+  input, textarea, select { @apply text-base; } /* stop iOS zoom-on-focus */
+  :focus-visible { @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-mist; }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 h-12 font-medium transition
+      active:scale-[.97] disabled:opacity-50 disabled:pointer-events-none select-none;
+  }
+  .btn-dark { @apply btn bg-ink text-white; }
+  .btn-accent { @apply btn bg-accent text-white shadow-[0_8px_24px_-8px_rgba(31,75,255,.7)]; }
+  .btn-light { @apply btn bg-white text-ink shadow-card; }
+  .btn-ghost { @apply btn bg-transparent text-ink/70 hover:bg-white/60; }
+  .icon-btn {
+    @apply inline-flex items-center justify-center rounded-full bg-white text-ink shadow-card h-12 w-12
+      shrink-0 transition active:scale-95;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full h-10 px-4 text-sm font-medium whitespace-nowrap
+      bg-white text-ink shadow-card transition active:scale-95;
+  }
+  .chip-active { @apply bg-ink text-white; }
+  .card { @apply rounded-4xl bg-white shadow-card; }
+  .field-label { @apply block text-sm font-medium text-ink/60 mb-1.5 ps-1; }
+  .field {
+    @apply w-full h-12 rounded-2xl bg-haze px-4 text-ink placeholder:text-ink/35 border border-transparent
+      focus:border-accent focus:bg-white focus:outline-none transition;
+  }
+  .section-title { @apply text-lg font-semibold mb-3; }
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+}
+
+.pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 1rem); }
+.pt-safe { padding-top: max(env(safe-area-inset-top), 0.75rem); }
+
+@keyframes pop { 0% { transform: scale(.6); opacity: 0 } 60% { transform: scale(1.06) } 100% { transform: scale(1); opacity: 1 } }
+.animate-pop { animation: pop .45s cubic-bezier(.2,.9,.3,1.2) both; }
+@keyframes rise { from { transform: translateY(12px); opacity: 0 } to { transform: none; opacity: 1 } }
+.animate-rise { animation: rise .35s ease-out both; }
+@keyframes sheet { from { transform: translateY(100%) } to { transform: none } }
+.animate-sheet { animation: sheet .3s cubic-bezier(.2,.8,.2,1) both; }
