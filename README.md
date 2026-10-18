@@ -51,7 +51,7 @@ npm test
 
 ## Storage
 
-Data lives in `data/db.json`, set by `DATA_FILE`. The server only talks to storage through the four-method `Store` interface in `server/store/Store.ts`.
+Data lives in `data/db.json`, set by `DATA_FILE`. The server only talks to storage through the small `Store` interface in `server/store/Store.ts`.
 
 To move to **Supabase**:
 
