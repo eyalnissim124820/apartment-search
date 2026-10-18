@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Apartment } from '../../shared/types';
-import type { Store } from './Store';
+import { emptyMeta, type Meta, type Store } from './Store';
 
 /**
  * Supabase backend. Each apartment is a row holding the full document in a
@@ -10,7 +10,12 @@ import type { Store } from './Store';
 export class SupabaseStore implements Store {
   private db: SupabaseClient;
 
-  constructor(url: string, serviceKey: string, private readonly table = 'apartments') {
+  constructor(
+    url: string,
+    serviceKey: string,
+    private readonly table = 'apartments',
+    private readonly metaTable = 'app_meta',
+  ) {
     this.db = createClient(url, serviceKey, { auth: { persistSession: false } });
   }
 
@@ -44,5 +49,16 @@ export class SupabaseStore implements Store {
     const { error, count } = await this.db.from(this.table).delete({ count: 'exact' }).eq('id', id);
     if (error) throw error;
     return (count ?? 0) > 0;
+  }
+
+  async getMeta() {
+    const { data, error } = await this.db.from(this.metaTable).select('data').eq('id', 'main').maybeSingle();
+    if (error) throw error;
+    return { ...emptyMeta(), ...(data?.data as Meta | undefined) };
+  }
+
+  async saveMeta(meta: Meta) {
+    const { error } = await this.db.from(this.metaTable).upsert({ id: 'main', data: meta });
+    if (error) throw error;
   }
 }

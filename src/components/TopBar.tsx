@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Languages, LogOut } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Languages, LogOut, Settings } from 'lucide-react';
 import { useApp } from '../state';
 import { Avatar, Sheet } from './ui';
 import { userKey } from '../i18n/strings';
@@ -20,9 +21,9 @@ export function TopBar() {
             <span className="block text-sm text-ink/55">{t('welcomeBack')}</span>
           </span>
         </button>
-        <button className="icon-btn" onClick={toggleLang} aria-label={t('language')}>
-          <Languages size={20} />
-        </button>
+        <Link className="icon-btn" to="/settings" aria-label={t('settings')}>
+          <Settings size={20} />
+        </Link>
       </div>
       <Sheet open={open} onClose={() => setOpen(false)} title={t('switchUser')}>
         <div className="grid grid-cols-2 gap-3">

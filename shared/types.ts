@@ -107,6 +107,43 @@ export interface ApartmentInput {
   contacts?: Contact[];
 }
 
+/** Items on the in-person viewing checklist. */
+export const CHECKLIST_KEYS = [
+  'waterPressure',
+  'hotWater',
+  'noise',
+  'mould',
+  'phoneSignal',
+  'light',
+  'windows',
+  'electricity',
+  'airConditioner',
+  'smell',
+  'neighbors',
+  'parkingArea',
+] as const;
+export type ChecklistKey = (typeof CHECKLIST_KEYS)[number];
+export type CheckState = 'ok' | 'issue';
+
+export interface ChecklistItem {
+  state?: CheckState;
+  note?: string;
+  by?: UserId;
+  at?: string;
+}
+
+export interface GeoPoint {
+  lat: number;
+  lng: number;
+}
+
+export interface Commute {
+  minutes: number; // driving
+  km: number;
+  /** True when the routing service was unreachable and this is a straight-line estimate. */
+  estimated?: boolean;
+}
+
 export interface Apartment extends ApartmentInput {
   id: string;
   createdAt: string;
@@ -124,4 +161,36 @@ export interface Apartment extends ApartmentInput {
   contacts: Contact[];
   comments: Comment[];
   history: HistoryEntry[];
+  checklist?: Partial<Record<ChecklistKey, ChecklistItem>>;
+  /** Geocoded location; `query` is the address string it was resolved from. */
+  geo?: GeoPoint & { query: string };
+  /** Driving time from this apartment to each partner's workplace. */
+  commute?: Partial<Record<UserId, Commute>>;
+  /** Viewing reminders already pushed, as `${viewingAt}|${lead}` keys. */
+  remindersSent?: string[];
+}
+
+export interface Workplace extends Partial<GeoPoint> {
+  address: string;
+}
+
+export type BudgetBasis = 'rent' | 'total';
+
+/** Shared, non-secret app settings. */
+export interface Settings {
+  budget?: { max?: number; basis: BudgetBasis };
+  work: Partial<Record<UserId, Workplace>>;
+}
+
+/** What the client receives from GET /api/settings. */
+export interface PublicSettings extends Settings {
+  vapidPublicKey: string;
+}
+
+export interface ImportResult {
+  data: Partial<ApartmentInput>;
+  /** Which fields were found, for UI feedback. */
+  found: (keyof ApartmentInput)[];
+  /** Set when the site blocked us or nothing useful was found. */
+  warning?: 'blocked' | 'empty';
 }

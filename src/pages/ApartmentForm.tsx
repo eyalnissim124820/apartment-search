@@ -1,32 +1,26 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, ImagePlus, Link2, Plus, X, Zap, ListChecks } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ClipboardPaste, ImagePlus, Link2, Loader2, Plus, Wand2, X, Zap, ListChecks } from 'lucide-react';
 import {
   ALL_STATUSES, FEATURE_KEYS, type ApartmentInput, type Contact, type ContactRole, type ListingSource, type Status,
 } from '../../shared/types';
+import { sourceFromUrl } from '../../shared/parseListing';
+import { overBudget } from '../../shared/workflow';
+import type { ImportResult } from '../../shared/types';
 import { useApp } from '../state';
 import { api } from '../lib/api';
-import { compressImage, fromLocalInput, toLocalInput } from '../lib/format';
+import { compressImage, fromLocalInput, money, toLocalInput } from '../lib/format';
 import { FEATURE_ICON } from '../components/ui';
 import { featureKey, roleKey, sourceKey, statusKey } from '../i18n/strings';
 
 const SOURCES: ListingSource[] = ['yad2', 'facebook', 'madlan', 'homeless', 'friend', 'other'];
 const NUMERIC = ['price', 'arnona', 'vaadBayit', 'rooms', 'sizeSqm', 'floor', 'totalFloors'] as const;
 
-/** Guess the source from a pasted listing URL. */
-function sourceFromUrl(url: string): ListingSource | undefined {
-  if (/yad2/i.test(url)) return 'yad2';
-  if (/facebook|fb\.com/i.test(url)) return 'facebook';
-  if (/madlan/i.test(url)) return 'madlan';
-  if (/homeless/i.test(url)) return 'homeless';
-  return undefined;
-}
-
 type Draft = Omit<ApartmentInput, (typeof NUMERIC)[number]> & Partial<Record<(typeof NUMERIC)[number], string>>;
 
 export default function ApartmentForm() {
   const { id } = useParams();
-  const { apartments, t, lang, mutate } = useApp();
+  const { apartments, t, lang, mutate, settings, showToast } = useApp();
   const nav = useNavigate();
   const existing = id ? apartments.find((a) => a.id === id) : undefined;
   const editing = !!id;
@@ -44,7 +38,55 @@ export default function ApartmentForm() {
     return out;
   });
 
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<{ kind: 'ok' | 'warn'; text: string } | null>(null);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasted, setPasted] = useState('');
+
   if (editing && !existing) return null;
+
+  /** Fill only fields the user hasn't typed yet. */
+  const applyImport = (r: ImportResult) => {
+    const data = r.data;
+    setD((x) => {
+      const out: Draft = { ...x };
+      for (const [k, v] of Object.entries(data) as [keyof Draft, unknown][]) {
+        if (v == null || v === '') continue;
+        if (k === 'features') out.features = { ...(v as object), ...x.features };
+        else if (k === 'images') out.images = x.images?.length ? x.images : (v as string[]);
+        else if (k === 'contacts') out.contacts = x.contacts?.length ? x.contacts : (v as Draft['contacts']);
+        else if ((NUMERIC as readonly string[]).includes(k)) { if (!x[k]) (out as Record<string, unknown>)[k] = String(v); }
+        else if (!x[k]) (out as Record<string, unknown>)[k] = v;
+      }
+      return out;
+    });
+    const n = r.found.length;
+    if (r.warning === 'blocked' || r.warning === 'empty') {
+      setImportMsg({ kind: 'warn', text: t(r.warning === 'blocked' ? 'importBlocked' : 'importEmpty') });
+      setPasteOpen(true);
+    } else {
+      setImportMsg({ kind: 'ok', text: t('importFound', { n }) });
+      if (n > 3) setMode('full');
+    }
+  };
+
+  const runImport = async (input: { url?: string; text?: string }) => {
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      applyImport(await api.importListing(input));
+      if (input.text) setPasteOpen(false);
+    } catch (e) {
+      showToast(`${t('error')}: ${(e as Error).message}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const over = overBudget(
+    { price: Number(d.price) || undefined, arnona: Number(d.arnona) || undefined, vaadBayit: Number(d.vaadBayit) || undefined },
+    settings?.budget,
+  );
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
   const text = (k: keyof Draft) => ({
@@ -104,8 +146,50 @@ export default function ApartmentForm() {
                   const url = e.target.value;
                   setD((x) => ({ ...x, listingUrl: url, source: x.source ?? sourceFromUrl(url) }));
                 }}
+                onPaste={(e) => {
+                  const url = e.clipboardData.getData('text').trim();
+                  if (!editing && /^https?:\/\//.test(url)) setTimeout(() => runImport({ url }), 0);
+                }}
               />
             </div>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                className="chip !shadow-none !bg-accent-soft !text-accent"
+                disabled={importing || !/^https?:\/\//.test(d.listingUrl ?? '')}
+                onClick={() => runImport({ url: d.listingUrl })}
+              >
+                {importing ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                {importing ? t('importing') : t('autoFill')}
+              </button>
+              <button type="button" className="chip !shadow-none !bg-haze" onClick={() => setPasteOpen((o) => !o)}>
+                <ClipboardPaste size={16} /> {t('pasteText')}
+              </button>
+            </div>
+            {importMsg && (
+              <p className={`mt-2 rounded-2xl p-3 text-sm ${importMsg.kind === 'ok' ? 'bg-[#E8F7F1] text-[#0F7A55]' : 'bg-[#FFF3DF] text-[#7A4808]'}`}>
+                {importMsg.text}
+              </p>
+            )}
+            {pasteOpen && (
+              <div className="mt-2 grid gap-2">
+                <textarea
+                  className="field !h-36 py-3 resize-none text-sm"
+                  placeholder={t('pasteTextHint')}
+                  value={pasted}
+                  onChange={(e) => setPasted(e.target.value)}
+                  dir="auto"
+                />
+                <button
+                  type="button"
+                  className="btn-dark !h-11"
+                  disabled={importing || !pasted.trim()}
+                  onClick={() => runImport({ text: pasted, url: d.listingUrl || undefined })}
+                >
+                  <Wand2 size={16} /> {t('parseText')}
+                </button>
+              </div>
+            )}
           </Field>
           <Field label={`${t('title')} *`}>
             <input
@@ -118,7 +202,8 @@ export default function ApartmentForm() {
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label={t('price')}>
-              <input className="field" inputMode="numeric" type="number" placeholder="₪" {...text('price')} />
+              <input className={`field ${over ? '!border-[#E5484D]' : ''}`} inputMode="numeric" type="number" placeholder="₪" {...text('price')} />
+              {over > 0 && <p className="mt-1 ps-1 text-xs text-[#B42318]">{t('overBudgetLong', { amount: money(over, lang) })}</p>}
             </Field>
             <Field label={t('city')}>
               <input className="field" {...text('city')} dir="auto" />

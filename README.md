@@ -24,13 +24,38 @@ npm start          # serves the built app + API on $PORT (default 3001)
 - **Contacts:** every listing starts with a contact person. When an apartment reaches "proceeding with owner", the app asks for the owner's details. Each contact has a call button and a WhatsApp button.
 - **Sync:** the app refreshes every 15 seconds and whenever the tab gets focus, so you see each other's changes.
 
+## Features added on top
+
+| Feature | How it works | Cost |
+|---|---|---|
+| **Link auto-fill** | Paste a Yad2 / Madlan / any listing link. The server reads the page's embedded data (Next.js/Apollo state, JSON-LD, Open Graph) and fills the form. Yad2 and Madlan sometimes block automated readers; when that happens, the app asks you to paste the ad text, and a Hebrew parser pulls out price, rooms, size, floor, address, arnona, features and phone numbers. | Free |
+| **Viewing checklist** | `/apt/:id/checklist`: 12 things to check on site (water pressure, mould, noise, signal…). Each item can be marked OK or an issue and given a note, and both of you see it live. | Free |
+| **Map + commute** | Addresses are geocoded with OpenStreetMap **Nominatim**. Driving time to each partner's workplace comes from the public **OSRM** server (if OSRM is down, the app shows a straight-line estimate marked "estimate"). Each apartment also has a public-transport button that opens Google Maps directions. Map tiles: CARTO/OSM. Set work addresses in **Settings**. | Free |
+| **Budget cap** | Set a monthly maximum in Settings, based on rent only or rent plus arnona and building fee. Apartments over it get a red price and a warning, and there's a "within budget" filter. | Free |
+| **Push notifications** | Standard **Web Push (VAPID)**: no third-party account, and the server sends directly through the browser's own push service. You get alerts when your partner votes, adds an apartment, changes a status or comments, when you have a match, and 24h and 1h before a viewing. Turn it on per device in Settings. | Free |
+
+### Push notification notes
+- VAPID keys are generated on first run and stored with the data. To pin them, set `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (generate with `npx web-push generate-vapid-keys`) and `VAPID_SUBJECT` (a `mailto:` you own).
+- **iPhone:** open the site in Safari → Share → *Add to Home Screen*, then open the app from the home screen and enable notifications in Settings (iOS 16.4+).
+- Push needs HTTPS (localhost is fine for development).
+- Reminders run inside the server process, so the server has to stay running (not a serverless function).
+
+### Free-service limits
+Nominatim allows about 1 request per second (the server queues requests). The OSRM demo server is best-effort. For heavier use, point `GEOCODER_URL` / `OSRM_URL` at self-hosted instances.
+
+## Tests
+
+```bash
+npm test
+```
+
 ## Storage
 
 Data lives in `data/db.json`, set by `DATA_FILE`. The server only talks to storage through the four-method `Store` interface in `server/store/Store.ts`.
 
 To move to **Supabase**:
 
-1. Run `supabase/schema.sql` in the Supabase SQL editor.
+1. Run `supabase/schema.sql` in the Supabase SQL editor (creates `apartments` and `app_meta`).
 2. Set `STORAGE=supabase`, `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` (see `.env.example`).
 3. Optionally, copy existing data across. Each apartment in `db.json` becomes one row, with the whole object in the `data` column.
 

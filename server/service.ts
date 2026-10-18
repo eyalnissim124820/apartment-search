@@ -1,18 +1,23 @@
 import { randomUUID } from 'node:crypto';
 import {
   ALL_STATUSES,
+  CHECKLIST_KEYS,
   PIPELINE,
   USERS,
   type Apartment,
   type ApartmentInput,
+  type BudgetBasis,
+  type ChecklistKey,
   type Contact,
   type HistoryEntry,
+  type PublicSettings,
   type Status,
   type UserId,
   type Vote,
 } from '../shared/types';
-import { nextStatus } from '../shared/workflow';
+import { geoQuery, nextStatus } from '../shared/workflow';
 import type { Store } from './store';
+import type { AppEvent } from './push';
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
@@ -49,8 +54,15 @@ function pickInput(body: Record<string, unknown>): Partial<ApartmentInput> {
 
 const now = () => new Date().toISOString();
 
+export interface ServiceHooks {
+  /** Something a partner should hear about happened. */
+  onEvent?: (e: AppEvent) => void;
+  /** Apartment created or its address changed – geocode / compute commute. */
+  onLocationChange?: (apt: Apartment) => void;
+}
+
 export class ApartmentService {
-  constructor(private readonly store: Store) {}
+  constructor(private readonly store: Store, private readonly hooks: ServiceHooks = {}) {}
 
   list() {
     return this.store.list();
@@ -104,15 +116,21 @@ export class ApartmentService {
       history: [],
     };
     this.log(apt, { user, action: 'created', to: status });
-    return this.commit(apt);
+    await this.commit(apt);
+    this.hooks.onEvent?.({ type: 'created', apt, user });
+    if (geoQuery(apt)) this.hooks.onLocationChange?.(apt);
+    return apt;
   }
 
   async update(id: string, body: Record<string, unknown>, user: UserId) {
     const apt = await this.get(id);
+    const before = geoQuery(apt);
     Object.assign(apt, pickInput(body));
     if (!apt.title?.trim()) throw new HttpError(400, 'Title is required');
     this.log(apt, { user, action: 'edited' });
-    return this.commit(apt);
+    await this.commit(apt);
+    if (geoQuery(apt) !== before) this.hooks.onLocationChange?.(apt);
+    return apt;
   }
 
   /**
@@ -134,17 +152,23 @@ export class ApartmentService {
     this.log(apt, { user, action: vote === 'approve' ? 'vote_approve' : 'vote_reject', from: apt.status });
 
     const votes = USERS.map((u) => apt.votes[u]);
+    const from = apt.status;
     if (votes.every((v) => v === 'approve')) this.moveTo(apt, next, 'system', 'advanced');
     else if (votes.every((v) => v === 'reject')) this.moveTo(apt, 'rejected', 'system', 'advanced');
-    return this.commit(apt);
+    await this.commit(apt);
+    this.hooks.onEvent?.({ type: 'vote', apt, user, vote, moved: apt.status !== from });
+    return apt;
   }
 
   /** Manual override – either partner can move an apartment to any status. */
   async setStatus(id: string, status: unknown, user: UserId) {
     const apt = await this.get(id);
     const to = assertStatus(status);
-    if (to !== apt.status) this.moveTo(apt, to, user, 'status_set');
-    return this.commit(apt);
+    if (to === apt.status) return apt;
+    this.moveTo(apt, to, user, 'status_set');
+    await this.commit(apt);
+    this.hooks.onEvent?.({ type: 'status', apt, user });
+    return apt;
   }
 
   async restore(id: string, user: UserId) {
@@ -199,7 +223,9 @@ export class ApartmentService {
     const t = String(text ?? '').trim();
     if (!t) throw new HttpError(400, 'Comment is empty');
     apt.comments.push({ id: randomUUID(), user, text: t, createdAt: now() });
-    return this.commit(apt);
+    await this.commit(apt);
+    this.hooks.onEvent?.({ type: 'comment', apt, user, text: t });
+    return apt;
   }
 
   async removeComment(id: string, commentId: string, user: UserId) {
@@ -210,7 +236,68 @@ export class ApartmentService {
     return this.commit(apt);
   }
 
+  /** Update one viewing-checklist item. `state: null` clears it. */
+  async setChecklist(id: string, user: UserId, body: { key?: unknown; state?: unknown; note?: unknown }) {
+    const apt = await this.get(id);
+    const key = body.key as ChecklistKey;
+    if (!CHECKLIST_KEYS.includes(key)) throw new HttpError(400, 'Unknown checklist item');
+    const prev = apt.checklist?.[key] ?? {};
+    const state = 'state' in body ? body.state : prev.state;
+    if (state != null && state !== 'ok' && state !== 'issue') throw new HttpError(400, 'Invalid state');
+    const note = 'note' in body ? String(body.note ?? '').trim() || undefined : prev.note;
+    apt.checklist = { ...apt.checklist };
+    if (!state && !note) delete apt.checklist[key];
+    else apt.checklist[key] = { state: (state as 'ok' | 'issue' | null) ?? undefined, note, by: user, at: now() };
+    return this.commit(apt);
+  }
+
   async remove(id: string) {
     if (!(await this.store.remove(id))) throw new HttpError(404, 'Apartment not found');
+  }
+}
+
+export class SettingsService {
+  constructor(
+    private readonly store: Store,
+    private readonly vapidKey: () => Promise<string>,
+    private readonly locate: (address: string) => Promise<{ lat: number; lng: number } | null>,
+    private readonly onWorkChange: () => void,
+  ) {}
+
+  async get(): Promise<PublicSettings> {
+    const { settings } = await this.store.getMeta();
+    return { ...settings, vapidPublicKey: await this.vapidKey() };
+  }
+
+  async update(body: Record<string, unknown>) {
+    const meta = await this.store.getMeta();
+    const s = meta.settings;
+    if ('budget' in body) {
+      const b = (body.budget ?? {}) as { max?: unknown; basis?: unknown };
+      const max = Number(b.max);
+      s.budget = {
+        max: max > 0 ? Math.round(max) : undefined,
+        basis: (b.basis === 'total' ? 'total' : 'rent') as BudgetBasis,
+      };
+    }
+    let workChanged = false;
+    if ('work' in body && body.work && typeof body.work === 'object') {
+      for (const u of USERS) {
+        if (!(u in (body.work as object))) continue;
+        const address = String((body.work as Record<string, { address?: unknown } | null>)[u]?.address ?? '').trim();
+        if (address === (s.work[u]?.address ?? '')) continue;
+        workChanged = true;
+        if (!address) { delete s.work[u]; continue; }
+        let point: { lat: number; lng: number } | null = null;
+        try { point = await this.locate(address); } catch { /* geocoder down – keep address, no coords */ }
+        s.work[u] = { address, ...(point ?? {}) };
+      }
+    }
+    // Re-read meta so we don't clobber push subscriptions written meanwhile.
+    const fresh = await this.store.getMeta();
+    fresh.settings = s;
+    await this.store.saveMeta(fresh);
+    if (workChanged) this.onWorkChange();
+    return this.get();
   }
 }

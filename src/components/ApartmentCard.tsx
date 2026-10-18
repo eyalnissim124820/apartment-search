@@ -4,7 +4,8 @@ import { USERS, type Apartment } from '../../shared/types';
 import { useApp } from '../state';
 import { money, dateTime } from '../lib/format';
 import { Avatar, Img, StatusBadge } from './ui';
-import { nextStatus } from '../../shared/workflow';
+import { nextStatus, overBudget } from '../../shared/workflow';
+import { CommuteChips } from './Commute';
 
 export function VoteDots({ apt }: { apt: Apartment }) {
   if (!nextStatus(apt.status)) return null;
@@ -30,7 +31,8 @@ export function VoteDots({ apt }: { apt: Apartment }) {
 }
 
 export function ApartmentCard({ apt }: { apt: Apartment }) {
-  const { t, lang, user } = useApp();
+  const { t, lang, user, settings } = useApp();
+  const over = overBudget(apt, settings?.budget);
   const cover = apt.images[0];
   const place = [apt.neighborhood, apt.city].filter(Boolean).join(', ');
   const fav = user ? apt.favorites.includes(user) : false;
@@ -66,8 +68,10 @@ export function ApartmentCard({ apt }: { apt: Apartment }) {
         </div>
         <div className="mt-4 flex items-end justify-between gap-3">
           <div>
-            <div className="text-2xl font-bold">{money(apt.price, lang)}</div>
-            <div className="text-xs text-ink/45">{t('perMonth')}</div>
+            <div className={`text-2xl font-bold ${over ? 'text-[#B42318]' : ''}`}>{money(apt.price, lang)}</div>
+            <div className="text-xs text-ink/45">
+              {over ? <span className="font-medium text-[#B42318]">{t('overBudget', { amount: money(over, lang) })}</span> : t('perMonth')}
+            </div>
           </div>
           <div className="flex gap-3 text-sm text-ink/65">
             {apt.rooms != null && (
@@ -82,6 +86,7 @@ export function ApartmentCard({ apt }: { apt: Apartment }) {
             )}
           </div>
         </div>
+        {apt.commute && <div className="mt-3 border-t border-ink/5 pt-3"><CommuteChips apt={apt} /></div>}
       </div>
     </Link>
   );

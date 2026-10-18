@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, ArrowRight, BedDouble, CalendarPlus, Check, ExternalLink, Heart, Layers, Mail, MapPin,
+  ArrowLeft, ArrowRight, BedDouble, Briefcase, CalendarPlus, Car, Check, ChevronLeft, ChevronRight, ClipboardCheck,
+  ExternalLink, LocateFixed, TrainFront, Wallet, Heart, Layers, Mail, MapPin,
   Maximize, MessageCircle, Pencil, Phone, Plus, RotateCcw, Send, Share2, ThumbsDown, ThumbsUp, Trash2,
   TriangleAlert, Undo2, X,
 } from 'lucide-react';
 import { ALL_STATUSES, FEATURE_KEYS, PIPELINE, USERS, type Apartment, type Contact, type Status, type UserId } from '../../shared/types';
-import { hasOwner, nextStatus, otherUser, OWNER_STATUSES, statusIndex, totalMonthly } from '../../shared/workflow';
+import { geoQuery, hasOwner, nextStatus, otherUser, overBudget, OWNER_STATUSES, statusIndex, totalMonthly } from '../../shared/workflow';
+import { checklistSummary } from './Checklist';
 import { useApp } from '../state';
 import { api } from '../lib/api';
 import { ago, dateShort, dateTime, fromLocalInput, money, phoneLinks, toLocalInput } from '../lib/format';
@@ -23,7 +25,7 @@ export default function Detail() {
 }
 
 function DetailView({ apt }: { apt: Apartment }) {
-  const { t, lang, user, mutate, showToast } = useApp();
+  const { t, lang, user, mutate, showToast, settings } = useApp();
   const me = user!;
   const nav = useNavigate();
   const [contactSheet, setContactSheet] = useState<{ initial?: Partial<Contact>; owner?: boolean } | null>(null);
@@ -37,6 +39,9 @@ function DetailView({ apt }: { apt: Apartment }) {
   };
 
   const fav = apt.favorites.includes(me);
+  const over = overBudget(apt, settings?.budget);
+  const checks = checklistSummary(apt);
+  const Fwd = lang === 'he' ? ChevronLeft : ChevronRight;
   const place = [apt.address, apt.neighborhood, apt.city].filter(Boolean).join(', ');
   const monthly = totalMonthly(apt);
   const mapsUrl = place ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}` : null;
@@ -124,6 +129,14 @@ function DetailView({ apt }: { apt: Apartment }) {
         )}
       </section>
 
+      {over > 0 && (
+        <p className="mt-3 flex items-center gap-2 rounded-3xl bg-[#FDECEC] p-4 text-sm font-medium text-[#B42318]">
+          <Wallet size={18} /> {t('overBudgetLong', { amount: money(over, lang) })}
+        </p>
+      )}
+
+      <CommuteCard apt={apt} />
+
       <Pipeline status={apt.status} rejectedFrom={apt.rejectedFrom} />
       <VotePanel apt={apt} me={me} onMoved={afterMove} />
 
@@ -162,6 +175,19 @@ function DetailView({ apt }: { apt: Apartment }) {
 
       {/* Viewing */}
       <ViewingCard apt={apt} />
+      <Link to={`/apt/${apt.id}/checklist`} className="card mt-4 flex items-center gap-4 p-5">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+          <ClipboardCheck size={22} />
+        </span>
+        <span className="flex-1">
+          <span className="block text-lg font-semibold">{t('checklist')}</span>
+          <span className="block text-sm text-ink/55">
+            {t('checklistProgress', { done: checks.done, total: checks.total })}
+            {checks.issues > 0 && <span className="text-[#B42318]"> · {t('checklistIssues', { n: checks.issues })}</span>}
+          </span>
+        </span>
+        <Fwd size={20} className="text-ink/40" />
+      </Link>
 
       {/* Ratings */}
       <section className="card mt-4 p-5">
@@ -528,6 +554,69 @@ function History({ apt }: { apt: Apartment }) {
         <button className="mt-3 text-sm font-medium text-accent" onClick={() => setOpen((o) => !o)}>
           {open ? '−' : `+${items.length - 3}`}
         </button>
+      )}
+    </section>
+  );
+}
+
+function CommuteCard({ apt }: { apt: Apartment }) {
+  const { t, settings, mutate } = useApp();
+  const [busy, setBusy] = useState(false);
+  const workers = USERS.filter((u) => settings?.work[u]?.address);
+  const query = geoQuery(apt);
+
+  const relocate = async () => {
+    setBusy(true);
+    try { await mutate(() => api.locate(apt.id)); } finally { setBusy(false); }
+  };
+
+  if (!workers.length) {
+    return (
+      <Link to="/settings" className="mt-3 flex items-center gap-3 rounded-3xl bg-white/60 p-4 text-sm text-ink/60">
+        <Briefcase size={18} /> {t('commuteSetup')}
+      </Link>
+    );
+  }
+  return (
+    <section className="card mt-3 p-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">{t('commute')}</h2>
+        {query && (
+          <button className="text-ink/40 p-1" onClick={relocate} disabled={busy} aria-label={t('relocate')} title={t('relocate')}>
+            <LocateFixed size={18} className={busy ? 'animate-spin' : ''} />
+          </button>
+        )}
+      </div>
+      {!apt.geo ? (
+        <p className="mt-2 text-sm text-ink/50">{query ? (busy ? t('locating') : t('noLocation')) : t('noLocation')}</p>
+      ) : (
+        <div className="mt-3 grid gap-2">
+          {workers.map((u) => {
+            const c = apt.commute?.[u];
+            const work = settings!.work[u]!.address;
+            const transit = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(query)}&destination=${encodeURIComponent(work)}&travelmode=transit`;
+            return (
+              <div key={u} className="flex items-center gap-3 rounded-2xl bg-haze p-3">
+                <Avatar user={u} size={32} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-1.5 font-semibold">
+                    <Car size={16} />
+                    <span className="whitespace-nowrap">{c ? `${c.minutes} ${t('min')}` : '—'}</span>
+                    {c && (
+                      <span className="whitespace-nowrap text-xs font-normal text-ink/45">
+                        · {c.km} {t('km')} {c.estimated ? `(${t('estimated')})` : ''}
+                      </span>
+                    )}
+                  </div>
+                  <div className="truncate text-xs text-ink/45">{work}</div>
+                </div>
+                <a href={transit} target="_blank" rel="noreferrer" className="icon-btn !h-10 !w-10 !shadow-none" title={t('transit')} aria-label={t('transit')}>
+                  <TrainFront size={18} />
+                </a>
+              </div>
+            );
+          })}
+        </div>
       )}
     </section>
   );

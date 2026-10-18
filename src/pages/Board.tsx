@@ -153,6 +153,7 @@ function CompareTable({ apts }: { apts: Apartment[] }) {
     [t('neighborhood'), (a) => a.neighborhood || a.city || '—'],
     [t('entry'), (a) => a.entryDate ?? '—'],
     [t('rating'), avgRating],
+    ...USERS.map((u) => [`${t('commute')} · ${t(userKey(u))}`, (a: Apartment) => (a.commute?.[u] ? `${a.commute[u]!.minutes} ${t('min')}` : '—')] as [string, (a: Apartment) => React.ReactNode]),
     ...USERS.map((u) => [`${t('rating')} · ${t(userKey(u))}`, (a: Apartment) => a.ratings[u] ?? '—'] as [string, (a: Apartment) => React.ReactNode]),
     ...FEATURE_KEYS.map((k) => [t(featureKey(k)), (a: Apartment) => (a.features[k] ? '✓' : '—')] as [string, (a: Apartment) => React.ReactNode]),
   ];

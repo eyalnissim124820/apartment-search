@@ -13,3 +13,10 @@ create index if not exists apartments_status_idx on public.apartments (status);
 -- The API server talks to Supabase with the service key, so RLS can stay on
 -- with no public policies.
 alter table public.apartments enable row level security;
+
+-- Shared settings, push subscriptions and VAPID keys (single row, id = 'main').
+create table if not exists public.app_meta (
+  id    text primary key,
+  data  jsonb not null
+);
+alter table public.app_meta enable row level security;

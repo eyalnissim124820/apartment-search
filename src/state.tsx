@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { Apartment, UserId } from '../shared/types';
+import type { Apartment, PublicSettings, UserId } from '../shared/types';
 import { USERS } from '../shared/types';
 import { api, setApiUser } from './lib/api';
+import { resyncPush } from './lib/push';
 import { strings, type Lang, type StringKey } from './i18n/strings';
 
 const read = (k: string) => {
@@ -18,6 +19,8 @@ interface AppState {
   toggleLang: () => void;
   t: (key: StringKey, vars?: Record<string, string | number>) => string;
   apartments: Apartment[];
+  settings: PublicSettings | null;
+  setSettings: (s: PublicSettings) => void;
   loaded: boolean;
   offline: boolean;
   refresh: () => Promise<void>;
@@ -37,6 +40,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
   const [lang, setLang] = useState<Lang>(() => (read('lang') === 'en' ? 'en' : 'he'));
   const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [settings, setSettings] = useState<PublicSettings | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [offline, setOffline] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -74,7 +78,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      setApartments(await api.list());
+      const [list, s] = await Promise.all([api.list(), api.settings()]);
+      setApartments(list);
+      setSettings(s);
       setOffline(false);
     } catch {
       setOffline(true);
@@ -82,6 +88,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setLoaded(true);
     }
   }, []);
+
+  // A device's push subscription follows whoever is using it.
+  useEffect(() => {
+    if (user) resyncPush(lang);
+  }, [user, lang]);
 
   // Keep both partners in sync: poll, and refetch when the tab regains focus.
   useEffect(() => {
@@ -126,8 +137,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<AppState>(
-    () => ({ user, setUser, lang, toggleLang, t, apartments, loaded, offline, refresh, mutate, toast, showToast }),
-    [user, setUser, lang, toggleLang, t, apartments, loaded, offline, refresh, mutate, toast, showToast],
+    () => ({
+      user, setUser, lang, toggleLang, t, apartments, settings, setSettings, loaded, offline, refresh, mutate, toast, showToast,
+    }),
+    [user, setUser, lang, toggleLang, t, apartments, settings, loaded, offline, refresh, mutate, toast, showToast],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

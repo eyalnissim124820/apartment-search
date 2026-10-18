@@ -2,10 +2,26 @@ import 'dotenv/config';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { ApartmentService, HttpError, assertUser } from './service';
+import { ApartmentService, HttpError, SettingsService, assertUser } from './service';
 import { createStore } from './store';
+import { PushService, startViewingReminders } from './push';
+import { Enricher } from './enrich';
+import { importFromText, importFromUrl } from './importer';
 
-const service = new ApartmentService(createStore());
+const store = createStore();
+const push = new PushService(store);
+const enricher = new Enricher(store);
+const service = new ApartmentService(store, {
+  onEvent: (e) => push.notify(e),
+  onLocationChange: (apt) => enricher.schedule(apt),
+});
+const settings = new SettingsService(
+  store,
+  () => push.publicKey(),
+  (address) => enricher.locate(address),
+  () => void enricher.refreshAll().catch((err) => console.warn('[geo]', err)),
+);
+
 const app = express();
 app.use(express.json({ limit: '15mb' })); // room for a few compressed photos
 
@@ -35,6 +51,43 @@ api.delete(
   '/apartments/:id/comments/:cid',
   h((req) => service.removeComment(req.params.id, req.params.cid, actor(req))),
 );
+api.post('/apartments/:id/checklist', h((req) => service.setChecklist(req.params.id, actor(req), req.body)));
+api.post(
+  '/apartments/:id/locate',
+  h(async (req) => {
+    await enricher.enrich(req.params.id, true);
+    return service.get(req.params.id);
+  }),
+);
+
+api.post(
+  '/import',
+  h(async (req) => {
+    const { url, text } = req.body as { url?: string; text?: string };
+    if (text?.trim()) return importFromText(text, url);
+    if (!url) throw new HttpError(400, 'url or text is required');
+    try {
+      return await importFromUrl(url);
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message);
+    }
+  }),
+);
+
+api.get('/settings', h(() => settings.get()));
+api.patch('/settings', h((req) => settings.update(req.body)));
+api.post('/geo/refresh', h(async () => { void enricher.refreshAll(true); return { ok: true }; }));
+
+api.post('/push/subscribe', h(async (req) => {
+  try {
+    await push.subscribe(actor(req), req.body.subscription, req.body.lang === 'en' ? 'en' : 'he');
+  } catch (err) {
+    if (err instanceof HttpError) throw err;
+    throw new HttpError(400, (err as Error).message);
+  }
+}));
+api.post('/push/unsubscribe', h((req) => push.unsubscribe(String(req.body?.endpoint ?? ''))));
+api.post('/push/test', h((req) => push.test(actor(req))));
 app.use('/api', api);
 
 // Serve the built client in production.
@@ -49,6 +102,8 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);
   res.status(500).json({ error: 'Internal error' });
 });
+
+startViewingReminders(store, push);
 
 const port = Number(process.env.PORT ?? 3001);
 app.listen(port, () => console.log(`[api] listening on http://localhost:${port}`));

@@ -1,21 +1,23 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Heart, Search, Sparkles, MessagesSquare } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Heart, Map as MapIcon, Search, Sparkles, MessagesSquare, Wallet } from 'lucide-react';
 import { ALL_STATUSES, USERS, type Apartment, type Status } from '../../shared/types';
-import { awaitsVoteFrom, nextStatus, statusIndex } from '../../shared/workflow';
+import { awaitsVoteFrom, nextStatus, overBudget, statusIndex } from '../../shared/workflow';
+import { maxCommute } from '../components/Commute';
 import { useApp } from '../state';
 import { TopBar } from '../components/TopBar';
 import { ApartmentCard } from '../components/ApartmentCard';
 import { Empty, STATUS_DOT } from '../components/ui';
 import { statusKey, type StringKey } from '../i18n/strings';
 
-type Filter = 'active' | 'all' | 'mine' | 'split' | 'fav' | Status;
-type Sort = 'newest' | 'priceLow' | 'priceHigh' | 'rating' | 'progress';
+type Filter = 'active' | 'all' | 'mine' | 'split' | 'fav' | 'budget' | Status;
+type Sort = 'newest' | 'priceLow' | 'priceHigh' | 'rating' | 'progress' | 'commute';
 
 const SORTS: [Sort, StringKey][] = [
   ['newest', 'sortNewest'],
   ['progress', 'sortProgress'],
   ['rating', 'sortRating'],
+  ['commute', 'sortCommute'],
   ['priceLow', 'sortPriceLow'],
   ['priceHigh', 'sortPriceHigh'],
 ];
@@ -29,7 +31,8 @@ const jointRating = (a: Apartment) => {
 };
 
 export default function Home() {
-  const { t, apartments, user, loaded, lang } = useApp();
+  const { t, apartments, user, loaded, lang, settings } = useApp();
+  const budget = settings?.budget;
   const [params, setParams] = useSearchParams();
   const filter = (params.get('f') as Filter) || 'active';
   const [q, setQ] = useState('');
@@ -45,10 +48,11 @@ export default function Home() {
       mine: myQueue.length,
       split: apartments.filter(isSplit).length,
       fav: apartments.filter((a) => user && a.favorites.includes(user)).length,
+      budget: budget?.max ? apartments.filter((a) => a.status !== 'rejected' && !overBudget(a, budget)).length : 0,
     };
     for (const s of ALL_STATUSES) c[s] = apartments.filter((a) => a.status === s).length;
     return c;
-  }, [apartments, myQueue.length, user]);
+  }, [apartments, myQueue.length, user, budget]);
 
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -57,6 +61,7 @@ export default function Home() {
       if (filter === 'mine' && !(user && awaitsVoteFrom(a, user))) return false;
       if (filter === 'split' && !isSplit(a)) return false;
       if (filter === 'fav' && !(user && a.favorites.includes(user))) return false;
+      if (filter === 'budget' && (a.status === 'rejected' || overBudget(a, budget))) return false;
       if (ALL_STATUSES.includes(filter as Status) && a.status !== filter) return false;
       if (needle) {
         const hay = [a.title, a.city, a.neighborhood, a.address, a.description].join(' ').toLowerCase();
@@ -70,9 +75,10 @@ export default function Home() {
       priceHigh: (a, b) => (b.price ?? -1) - (a.price ?? -1),
       rating: (a, b) => jointRating(b) - jointRating(a),
       progress: (a, b) => statusIndex(b.status) - statusIndex(a.status),
+      commute: (a, b) => maxCommute(a) - maxCommute(b),
     };
     return out.sort(by[sort]);
-  }, [apartments, filter, q, sort, user]);
+  }, [apartments, filter, q, sort, user, budget]);
 
   const setFilter = (f: Filter) => setParams(f === 'active' ? {} : { f }, { replace: true });
 
@@ -81,6 +87,7 @@ export default function Home() {
     { key: 'mine', label: t('needsMyVote'), icon: <Sparkles size={14} /> },
     { key: 'split', label: t('needsDiscussion'), icon: <MessagesSquare size={14} /> },
     { key: 'fav', label: t('favorites'), icon: <Heart size={14} /> },
+    { key: 'budget', label: t('withinBudget'), icon: <Wallet size={14} /> },
     ...ALL_STATUSES.map((s) => ({ key: s as Filter, label: t(statusKey(s)), dot: STATUS_DOT[s] })),
     { key: 'all', label: t('all') },
   ];
@@ -134,6 +141,9 @@ export default function Home() {
             onChange={(e) => setQ(e.target.value)}
           />
         </label>
+        <Link to="/map" className="icon-btn" aria-label={t('map')} title={t('map')}>
+          <MapIcon size={20} />
+        </Link>
         <select
           className="field !w-auto !bg-white shadow-card !rounded-full text-sm"
           value={sort}

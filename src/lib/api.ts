@@ -1,4 +1,6 @@
-import type { Apartment, ApartmentInput, Contact, Status, UserId, Vote } from '../../shared/types';
+import type {
+  Apartment, ApartmentInput, CheckState, ChecklistKey, Contact, ImportResult, PublicSettings, Settings, Status, UserId, Vote,
+} from '../../shared/types';
 
 let currentUser: UserId | null = null;
 export const setApiUser = (u: UserId | null) => (currentUser = u);
@@ -36,4 +38,14 @@ export const api = {
   removeContact: (id: string, cid: string) => req<Apartment>('DELETE', apt(id, `/contacts/${cid}`)),
   comment: (id: string, text: string) => req<Apartment>('POST', apt(id, '/comments'), { text }),
   removeComment: (id: string, cid: string) => req<Apartment>('DELETE', apt(id, `/comments/${cid}`)),
+  checklist: (id: string, key: ChecklistKey, patch: { state?: CheckState | null; note?: string }) =>
+    req<Apartment>('POST', apt(id, '/checklist'), { key, ...patch }),
+  locate: (id: string) => req<Apartment>('POST', apt(id, '/locate')),
+  importListing: (input: { url?: string; text?: string }) => req<ImportResult>('POST', '/import', input),
+  settings: () => req<PublicSettings>('GET', '/settings'),
+  saveSettings: (patch: Partial<Settings>) => req<PublicSettings>('PATCH', '/settings', patch),
+  pushSubscribe: (subscription: PushSubscriptionJSON, lang: string) =>
+    req<void>('POST', '/push/subscribe', { subscription, lang }),
+  pushUnsubscribe: (endpoint: string) => req<void>('POST', '/push/unsubscribe', { endpoint }),
+  pushTest: () => req<void>('POST', '/push/test'),
 };

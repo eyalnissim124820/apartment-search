@@ -9,6 +9,9 @@ import ApartmentForm from './pages/ApartmentForm';
 import Match from './pages/Match';
 import Board from './pages/Board';
 import Calendar from './pages/Calendar';
+import Settings from './pages/Settings';
+import MapView from './pages/MapView';
+import Checklist from './pages/Checklist';
 
 export default function App() {
   const { user } = useApp();
@@ -22,6 +25,9 @@ export default function App() {
         <Route path="/match" element={<Match />} />
         <Route path="/board" element={<Board />} />
         <Route path="/calendar" element={<Calendar />} />
+        <Route path="/map" element={<MapView />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/apt/:id/checklist" element={<Checklist />} />
         <Route path="/new" element={<ApartmentForm />} />
         <Route path="/apt/:id" element={<Detail />} />
         <Route path="/apt/:id/edit" element={<ApartmentForm />} />

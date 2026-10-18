@@ -1,11 +1,12 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { Apartment } from '../../shared/types';
-import type { Store } from './Store';
+import { emptyMeta, type Meta, type Store } from './Store';
 
 interface DbFile {
   version: 1;
   apartments: Apartment[];
+  meta?: Meta;
 }
 
 /** Single JSON file on disk. Writes are serialized and atomic (tmp + rename). */
@@ -53,6 +54,19 @@ export class JsonStore implements Store {
       const i = db.apartments.findIndex((a) => a.id === apartment.id);
       if (i >= 0) db.apartments[i] = apartment;
       else db.apartments.unshift(apartment);
+      await this.flush(db);
+    });
+  }
+
+  async getMeta() {
+    const db = await this.load();
+    return { ...emptyMeta(), ...db.meta };
+  }
+
+  saveMeta(meta: Meta) {
+    return this.exclusive(async () => {
+      const db = await this.load();
+      db.meta = meta;
       await this.flush(db);
     });
   }
