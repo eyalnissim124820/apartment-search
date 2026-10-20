@@ -15,8 +15,28 @@ const BLOCK_MARKERS = /shieldsquare|perfdrive|captcha|are you a robot|radware|cf
 const decode = (s: string) =>
   s
     .replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&');
+
+/** Drop markdown bold markers and squeeze whitespace (Facebook post text is full of `**`). */
+const tidy = (s: string) => s.replace(/\*+/g, '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+
+const SITE_SUFFIX = /\s*[|\-–]\s*(facebook|יד ?2|yad2|מדלן|madlan|homeless|הומלס)\s*$/i;
+
+/**
+ * Page titles are noisy: "Group name | **Post text…** | Facebook", "…| יד2".
+ * Keep the most specific segment (the post itself) and cap the length.
+ */
+export function cleanTitle(raw: string): string | undefined {
+  let t = tidy(decode(raw)).replace(SITE_SUFFIX, '');
+  const parts = t.split(/\s+\|\s+/).map((x) => x.trim()).filter(Boolean);
+  if (parts.length > 1) t = parts[parts.length - 1];
+  t = t.replace(/^[\s!.,:;-]+|[\s!.,:;-]+$/g, '');
+  if (t.length > 60) t = `${t.slice(0, 60).replace(/\s+\S*$/, '')}…`;
+  return t || undefined;
+}
 
 function metaTags(html: string): Record<string, string[]> {
   const out: Record<string, string[]> = {};
@@ -205,19 +225,21 @@ function merge(...parts: Partial<ApartmentInput>[]): Partial<ApartmentInput> {
 export function extractFromHtml(html: string, url: string): Partial<ApartmentInput> {
   const meta = metaTags(html);
   const title = meta['og:title']?.[0] ?? decode(html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] ?? '').trim();
-  const description = meta['og:description']?.[0] ?? meta['description']?.[0] ?? '';
+  const description = tidy(meta['og:description']?.[0] ?? meta['description']?.[0] ?? '');
   const ogImages = (meta['og:image'] ?? []).filter((u) => /^https?:/.test(u));
 
   const structured = merge(...jsonScripts(html).map(extractStructured));
   const fromText = parseListingText(`${title}\n${description}\n${structured.description ?? ''}`);
 
-  const cleanTitle = title.replace(/\s*[|\-–]\s*(יד ?2|yad2|מדלן|madlan).*$/i, '').trim();
   const result = merge(
     structured,
-    { title: cleanTitle || undefined, description: description || undefined, images: ogImages.length ? ogImages : undefined },
+    { title: cleanTitle(title), description: description || undefined, images: ogImages.length ? ogImages : undefined },
     fromText,
   );
-  result.title ??= suggestTitle(result);
+  // A generated "3 חד׳ בבזל 12, תל אביב" beats a long marketing headline when we know rooms + location.
+  const suggested = suggestTitle(result);
+  if (suggested && result.rooms && (result.address || result.city)) result.title = suggested;
+  result.title ??= suggested;
   result.listingUrl = url;
   result.source = sourceFromUrl(url) ?? 'other';
   if (result.images) result.images = [...new Set(result.images)].slice(0, 10);

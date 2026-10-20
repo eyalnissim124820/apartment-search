@@ -259,6 +259,7 @@ const he = {
   locating: 'מאתר מיקום…',
   relocate: 'איתור מחדש',
   sortCommute: 'זמן נסיעה',
+  commuteApprox: 'משוער – ידועה רק העיר. הוסיפו כתובת רחוב לזמן מדויק',
   notOnMap: '{n} דירות בלי מיקום',
 
   // budget
@@ -540,6 +541,7 @@ const en: Record<StringKey, string> = {
   locating: 'Locating…',
   relocate: 'Locate again',
   sortCommute: 'Commute',
+  commuteApprox: 'Approximate – only the city is known. Add a street address for an exact time',
   notOnMap: '{n} apartments without a location',
 
   budget: 'Budget',

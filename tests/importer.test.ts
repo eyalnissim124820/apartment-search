@@ -36,7 +36,7 @@ test('extracts Yad2-style embedded state', () => {
   assert.equal(r.features?.elevator, true);
   assert.equal(r.features?.safeRoom, true);
   assert.equal(r.features?.parking, undefined);
-  assert.equal(r.title, 'דירה להשכרה, 3 חדרים, בזל 12, תל אביב');
+  assert.equal(r.title, '3 חד׳ בבזל 12, תל אביב יפו');
 });
 
 const madlanHtml = `<html><head><title>דירה להשכרה ברמת גן - מדלן</title></head><body>
@@ -108,4 +108,15 @@ test('treats a bot-wall page as blocked', async () => {
   } finally {
     globalThis.fetch = realFetch;
   }
+});
+
+test('cleans Facebook titles: hex entities, group name, ** and site suffix', async () => {
+  const { cleanTitle } = await import('../server/importer.js');
+  const raw = '&#x5d3;&#x5d9;&#x5e8;&#x5d5;&#x5ea; &#x5de;&#x5e4;&#x5d4; &#x5dc;&#x5d0;&#x5d5;&#x5d6;&#x5df; | **&#x5dc;&#x5d4;&#x5e9;&#x5db;&#x5e8;&#x5d4;! &#x5d3;&#x5d9;&#x5e8;&#x5d4; 3 &#x5d7;&#x5d3;&#x5e8;&#x5d9;&#x5dd; ** | Facebook';
+  assert.equal(cleanTitle(raw), 'להשכרה! דירה 3 חדרים');
+  const html = `<meta property="og:title" content="${raw}" /><meta property="og:description" content="**&#x5dc;&#x5d4;&#x5e9;&#x5db;&#x5e8;&#x5d4;** &#x5d1;&#x5ea;&#x5dc; &#x5d0;&#x5d1;&#x5d9;&#x5d1;" />`;
+  const r = extractFromHtml(html, 'https://www.facebook.com/share/p/x');
+  assert.equal(r.title, '3 חד׳ בתל אביב');
+  assert.equal(r.description, 'להשכרה בתל אביב');
+  assert.equal(r.source, 'facebook');
 });

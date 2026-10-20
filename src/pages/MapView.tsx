@@ -10,8 +10,12 @@ import { Img, STATUS_DOT, StatusBadge } from '../components/ui';
 import { CommuteChips, maxCommute } from '../components/Commute';
 import { userKey } from '../i18n/strings';
 
-const TILES = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>';
+// Keyless OpenStreetMap tiles by default. To use a keyed provider (MapTiler, Stadia…), set
+// VITE_MAP_TILES_URL (and VITE_MAP_TILES_ATTRIBUTION) on Vercel – they're baked in at build time.
+const TILES = import.meta.env.VITE_MAP_TILES_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const ATTRIBUTION =
+  import.meta.env.VITE_MAP_TILES_ATTRIBUTION ||
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 const TEL_AVIV: L.LatLngTuple = [32.0853, 34.7818];
 
 function pin(apt: Apartment, active: boolean, over: boolean) {
@@ -57,7 +61,7 @@ export default function MapView() {
   useEffect(() => {
     if (!el.current || map.current) return;
     map.current = L.map(el.current, { zoomControl: false, attributionControl: true }).setView(TEL_AVIV, 12);
-    L.tileLayer(TILES, { attribution: ATTRIBUTION, maxZoom: 19, subdomains: 'abcd' }).addTo(map.current);
+    L.tileLayer(TILES, { attribution: ATTRIBUTION, maxZoom: 19, className: 'map-tiles' }).addTo(map.current);
     layer.current = L.layerGroup().addTo(map.current);
     return () => { map.current?.remove(); map.current = undefined; };
   }, []);

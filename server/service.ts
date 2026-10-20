@@ -43,7 +43,11 @@ function assertStatus(s: unknown): Status {
 
 function pickInput(body: Record<string, unknown>): Partial<ApartmentInput> {
   const out: Record<string, unknown> = {};
-  for (const k of EDITABLE_FIELDS) if (k in body) out[k] = body[k] === '' ? undefined : body[k];
+  for (const k of EDITABLE_FIELDS) {
+    if (!(k in body)) continue;
+    const v = typeof body[k] === 'string' ? (body[k] as string).trim() : body[k];
+    out[k] = v === '' ? undefined : v;
+  }
   if (out.contacts) {
     out.contacts = (out.contacts as Contact[])
       .filter((c) => c && (c.name || c.phone))

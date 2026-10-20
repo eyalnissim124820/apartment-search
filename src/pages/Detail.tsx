@@ -591,6 +591,14 @@ function CommuteCard({ apt }: { apt: Apartment }) {
         <p className="mt-2 text-sm text-ink/50">{query ? (busy ? t('locating') : t('noLocation')) : t('noLocation')}</p>
       ) : (
         <div className="mt-3 grid gap-2">
+          {!apt.address && (
+            <Link
+              to={`/apt/${apt.id}/edit`}
+              className="flex items-center gap-2 rounded-2xl bg-[#FFF3DF] p-3 text-sm text-[#7A4808]"
+            >
+              <TriangleAlert size={16} className="shrink-0" /> {t('commuteApprox')}
+            </Link>
+          )}
           {workers.map((u) => {
             const c = apt.commute?.[u];
             const work = settings!.work[u]!.address;

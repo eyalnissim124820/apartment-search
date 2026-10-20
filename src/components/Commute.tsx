@@ -14,7 +14,7 @@ export function CommuteChips({ apt, dark }: { apt: Apartment; dark?: boolean }) 
       {entries.map((u) => (
         <span key={u} className="inline-flex items-center gap-1">
           <Avatar user={u} size={16} />
-          {apt.commute![u]!.estimated ? '~' : ''}
+          {apt.commute![u]!.estimated || !apt.address ? '~' : ''}
           {apt.commute![u]!.minutes} {t('min')}
         </span>
       ))}

@@ -30,7 +30,7 @@ npm start          # serves the built app + API on $PORT (default 3001)
 |---|---|---|
 | **Link auto-fill** | Paste a Yad2 / Madlan / any listing link. The server reads the page's embedded data (Next.js/Apollo state, JSON-LD, Open Graph) and fills the form. Yad2 and Madlan sometimes block automated readers; when that happens, the app asks you to paste the ad text, and a Hebrew parser pulls out price, rooms, size, floor, address, arnona, features and phone numbers. | Free |
 | **Viewing checklist** | `/apt/:id/checklist`: 12 things to check on site (water pressure, mould, noise, signal…). Each item can be marked OK or an issue and given a note, and both of you see it live. | Free |
-| **Map + commute** | Addresses are geocoded with OpenStreetMap **Nominatim**. Driving time to each partner's workplace comes from the public **OSRM** server (if OSRM is down, the app shows a straight-line estimate marked "estimate"). Each apartment also has a public-transport button that opens Google Maps directions. Map tiles: CARTO/OSM. Set work addresses in **Settings**. | Free |
+| **Map + commute** | Addresses are geocoded with OpenStreetMap **Nominatim**. Driving time to each partner's workplace comes from the public **OSRM** server (if OSRM is down, the app shows a straight-line estimate marked "estimate"). Each apartment also has a public-transport button that opens Google Maps directions. Map tiles: OpenStreetMap (no key). Set work addresses in **Settings**. | Free |
 | **Budget cap** | Set a monthly maximum in Settings, based on rent only or rent plus arnona and building fee. Apartments over it get a red price and a warning, and there's a "within budget" filter. | Free |
 | **Push notifications** | Standard **Web Push (VAPID)**: no third-party account, and the server sends directly through the browser's own push service. You get alerts when your partner votes, adds an apartment, changes a status or comments, when you have a match, and 24h and 1h before a viewing. Turn it on per device in Settings. | Free |
 
@@ -51,7 +51,7 @@ Nominatim allows about 1 request per second (the server queues requests). The OS
 - **Reminders:** Vercel Hobby cron runs only once a day, so Supabase `pg_cron` + `pg_net` calls `GET /api/cron/reminders` every 5 minutes with `Authorization: Bearer $CRON_SECRET` (job name `viewing-reminders`; inspect with `select * from cron.job;`).
 - `GET /api/health` reports storage, push and cron readiness.
 
-Vercel env vars: `STORAGE`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `CRON_SECRET` (optional: `TZ_DISPLAY`, `GEOCODER_URL`, `OSRM_URL`, `GEO_USER_AGENT`).
+Vercel env vars: `STORAGE`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `CRON_SECRET` (optional: `TZ_DISPLAY`, `GEOCODER_URL`, `OSRM_URL`, `GEO_USER_AGENT`, and build-time `VITE_MAP_TILES_URL` / `VITE_MAP_TILES_ATTRIBUTION` for a keyed map-tile provider; default is keyless OpenStreetMap).
 
 ## Tests
 

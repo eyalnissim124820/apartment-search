@@ -53,3 +53,6 @@
 .animate-rise { animation: rise .35s ease-out both; }
 @keyframes sheet { from { transform: translateY(100%) } to { transform: none } }
 .animate-sheet { animation: sheet .3s cubic-bezier(.2,.8,.2,1) both; }
+
+/* Soften OSM's default colours to match the app's muted palette. */
+.map-tiles { filter: saturate(0.55) brightness(1.04) contrast(0.95); }
