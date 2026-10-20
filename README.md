@@ -38,10 +38,20 @@ npm start          # serves the built app + API on $PORT (default 3001)
 - VAPID keys are generated on first run and stored with the data. To pin them, set `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (generate with `npx web-push generate-vapid-keys`) and `VAPID_SUBJECT` (a `mailto:` you own).
 - **iPhone:** open the site in Safari → Share → *Add to Home Screen*, then open the app from the home screen and enable notifications in Settings (iOS 16.4+).
 - Push needs HTTPS (localhost is fine for development).
-- Reminders run inside the server process, so the server has to stay running (not a serverless function).
+- Viewing reminders: the long-running server checks every 5 minutes by itself. On Vercel, a scheduler calls `/api/cron/reminders` instead (see below).
 
 ### Free-service limits
 Nominatim allows about 1 request per second (the server queues requests). The OSRM demo server is best-effort. For heavier use, point `GEOCODER_URL` / `OSRM_URL` at self-hosted instances.
+
+## Deploying on Vercel (current setup)
+
+- `api/index.ts` runs the whole Express API as one Vercel Function; `vercel.json` sends `/api/*` to it and every other path to the SPA.
+- Storage is Supabase (`STORAGE=supabase`). The function runs in `dub1`, next to the Supabase project in `eu-west-1`.
+- Background work after a response (push sends, geocoding) uses `waitUntil`.
+- **Reminders:** Vercel Hobby cron runs only once a day, so Supabase `pg_cron` + `pg_net` calls `GET /api/cron/reminders` every 5 minutes with `Authorization: Bearer $CRON_SECRET` (job name `viewing-reminders`; inspect with `select * from cron.job;`).
+- `GET /api/health` reports storage, push and cron readiness.
+
+Vercel env vars: `STORAGE`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `CRON_SECRET` (optional: `TZ_DISPLAY`, `GEOCODER_URL`, `OSRM_URL`, `GEO_USER_AGENT`).
 
 ## Tests
 

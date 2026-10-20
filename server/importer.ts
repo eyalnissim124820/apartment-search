@@ -254,7 +254,10 @@ export async function importFromUrl(url: string): Promise<ImportResult> {
   } catch {
     return summarize(base, 'blocked');
   }
-  return summarize(extractFromHtml(html, url));
+  const data = extractFromHtml(html, url);
+  // Bot walls (e.g. Yad2's Radware page) answer 200 with their own title – don't mistake them for a listing.
+  if (BLOCK_MARKERS.test(`${data.title ?? ''} ${data.description ?? ''}`)) return summarize(base, 'blocked');
+  return summarize(data);
 }
 
 /** "3.5 חד׳ בכצנלסון 42, גבעתיים" – a readable default when the source had no title. */

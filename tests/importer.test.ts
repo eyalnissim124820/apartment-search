@@ -95,3 +95,17 @@ test('suggests a title for pasted text', () => {
   const r = importFromText('3 חדרים ברחוב ביאליק 40 רמת גן, 6,500 ₪');
   assert.equal(r.data.title, '3 חד׳ בביאליק 40, רמת גן');
 });
+
+test('treats a bot-wall page as blocked', async () => {
+  const { importFromUrl } = await import('../server/importer.js');
+  const html = '<html><head><title>Radware Page</title><meta name="description" content="Loader page."></head></html>';
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(html, { status: 200 })) as typeof fetch;
+  try {
+    const r = await importFromUrl('https://www.yad2.co.il/realestate/item/x');
+    assert.equal(r.warning, 'blocked');
+    assert.equal(r.data.title, undefined);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

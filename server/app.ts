@@ -101,6 +101,7 @@ export function createApp() {
 
   api.get('/settings', h(() => settings.get()));
   api.patch('/settings', h((req) => settings.update(req.body)));
+  api.post('/settings', h((req) => settings.update(req.body))); // same, for clients without PATCH (e.g. pg_net)
   api.post(
     '/geo/refresh',
     h(async () => {
