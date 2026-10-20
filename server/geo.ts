@@ -1,4 +1,4 @@
-import type { Commute, GeoPoint } from '../shared/types';
+import type { Commute, GeoPoint } from '../shared/types.js';
 
 /**
  * Free OpenStreetMap services:

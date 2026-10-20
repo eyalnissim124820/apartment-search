@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { Apartment } from '../../shared/types';
-import { emptyMeta, type Meta, type Store } from './Store';
+import type { Apartment } from '../../shared/types.js';
+import { emptyMeta, type Meta, type Store } from './Store.js';
 
 /**
  * Supabase backend. Each apartment is a row holding the full document in a

@@ -1,7 +1,8 @@
 import webpush from 'web-push';
-import type { Apartment, Status, UserId, Vote } from '../shared/types';
-import { USERS } from '../shared/types';
-import type { Meta, PushSubscriptionRecord, Store } from './store/Store';
+import type { Apartment, Status, UserId, Vote } from '../shared/types.js';
+import { USERS } from '../shared/types.js';
+import type { Meta, PushSubscriptionRecord, Store } from './store/Store.js';
+import { background } from './background.js';
 
 /**
  * Standard Web Push (VAPID) – free, no third-party account. Works in Chrome/
@@ -138,8 +139,9 @@ export class PushService {
     }
   }
 
+  /** Send in the background; the returned promise can be awaited when the caller needs it done. */
   notify(e: AppEvent) {
-    this.sendTo(recipients(e), (lang) => render(e, lang)).catch((err) => console.warn('[push]', err));
+    return background(this.sendTo(recipients(e), (lang) => render(e, lang)), 'push');
   }
 
   test(user: UserId) {
@@ -157,27 +159,32 @@ const LEADS = [
   { lead: '1h' as const, ms: 3600_000, minMs: 0 },
 ];
 
-/** Every few minutes, push reminders for viewings coming up in 24h and 1h. */
-export function startViewingReminders(store: Store, push: PushService, everyMs = 5 * 60_000) {
-  const tick = async () => {
-    const now = Date.now();
-    for (const apt of await store.list()) {
-      if (!apt.viewingAt || apt.status === 'rejected') continue;
-      const until = new Date(apt.viewingAt).getTime() - now;
-      if (until <= 0) continue;
-      for (const { lead, ms, minMs } of LEADS) {
-        const key = `${apt.viewingAt}|${lead}`;
-        if (until > ms || until < minMs || apt.remindersSent?.includes(key)) continue;
-        const fresh = await store.get(apt.id);
-        if (!fresh) break;
-        fresh.remindersSent = [...(fresh.remindersSent ?? []).filter((k) => k.startsWith(apt.viewingAt!)), key];
-        await store.save(fresh);
-        push.notify({ type: 'viewing', apt: fresh, lead });
-        break;
-      }
+/** Push reminders for viewings coming up in 24h and 1h. Safe to call repeatedly. Returns how many were sent. */
+export async function sendDueReminders(store: Store, push: Pick<PushService, 'notify'>): Promise<number> {
+  const now = Date.now();
+  let sent = 0;
+  for (const apt of await store.list()) {
+    if (!apt.viewingAt || apt.status === 'rejected') continue;
+    const until = new Date(apt.viewingAt).getTime() - now;
+    if (until <= 0) continue;
+    for (const { lead, ms, minMs } of LEADS) {
+      const key = `${apt.viewingAt}|${lead}`;
+      if (until > ms || until < minMs || apt.remindersSent?.includes(key)) continue;
+      const fresh = await store.get(apt.id);
+      if (!fresh) break;
+      fresh.remindersSent = [...(fresh.remindersSent ?? []).filter((k) => k.startsWith(apt.viewingAt!)), key];
+      await store.save(fresh);
+      await push.notify({ type: 'viewing', apt: fresh, lead });
+      sent++;
+      break;
     }
-  };
-  const run = () => tick().catch((err) => console.warn('[reminders]', err));
+  }
+  return sent;
+}
+
+/** Local/long-running servers: check for due reminders every few minutes. */
+export function startViewingReminders(store: Store, push: Pick<PushService, 'notify'>, everyMs = 5 * 60_000) {
+  const run = () => sendDueReminders(store, push).catch((err) => console.warn('[reminders]', err));
   run();
   return setInterval(run, everyMs);
 }

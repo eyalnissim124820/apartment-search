@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import type { Apartment } from '../../shared/types';
-import { emptyMeta, type Meta, type Store } from './Store';
+import type { Apartment } from '../../shared/types.js';
+import { emptyMeta, type Meta, type Store } from './Store.js';
 
 interface DbFile {
   version: 1;

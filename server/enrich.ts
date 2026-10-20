@@ -1,7 +1,8 @@
-import { USERS, type Apartment, type Commute, type UserId } from '../shared/types';
-import { geoQuery } from '../shared/workflow';
-import { driveTime, geocode } from './geo';
-import type { Store } from './store/Store';
+import { USERS, type Apartment, type Commute, type UserId } from '../shared/types.js';
+import { geoQuery } from '../shared/workflow.js';
+import { driveTime, geocode } from './geo.js';
+import type { Store } from './store/Store.js';
+import { background } from './background.js';
 
 /**
  * Background location work: geocode apartments and workplaces, then compute
@@ -16,9 +17,7 @@ export class Enricher {
   schedule(apt: Apartment) {
     if (this.pending.has(apt.id)) return;
     this.pending.add(apt.id);
-    this.enrich(apt.id)
-      .catch((err) => console.warn('[geo]', apt.id, (err as Error).message))
-      .finally(() => this.pending.delete(apt.id));
+    background(this.enrich(apt.id).finally(() => this.pending.delete(apt.id)), `geo ${apt.id}`);
   }
 
   private async commutes(geo: { lat: number; lng: number }) {

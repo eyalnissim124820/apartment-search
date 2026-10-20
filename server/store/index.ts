@@ -1,7 +1,7 @@
 import path from 'node:path';
-import { JsonStore } from './jsonStore';
-import { SupabaseStore } from './supabaseStore';
-import type { Store } from './Store';
+import { JsonStore } from './jsonStore.js';
+import { SupabaseStore } from './supabaseStore.js';
+import type { Store } from './Store.js';
 
 export function createStore(): Store {
   const { SUPABASE_URL, SUPABASE_SERVICE_KEY, DATA_FILE } = process.env;

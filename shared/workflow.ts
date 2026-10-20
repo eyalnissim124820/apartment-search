@@ -1,4 +1,4 @@
-import { PIPELINE, USERS, type Apartment, type PipelineStatus, type Settings, type Status, type UserId } from './types';
+import { PIPELINE, USERS, type Apartment, type PipelineStatus, type Settings, type Status, type UserId } from './types.js';
 
 export function nextStatus(status: Status): PipelineStatus | null {
   if (status === 'rejected') return null;

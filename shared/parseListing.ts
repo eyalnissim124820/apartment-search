@@ -1,4 +1,4 @@
-import type { ApartmentInput, Contact, Features, ListingSource } from './types';
+import type { ApartmentInput, Contact, Features, ListingSource } from './types.js';
 
 /**
  * Pull apartment details out of free Hebrew/English listing text – an ad

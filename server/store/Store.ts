@@ -1,4 +1,4 @@
-import type { Apartment, Settings, UserId } from '../../shared/types';
+import type { Apartment, Settings, UserId } from '../../shared/types.js';
 
 export interface PushSubscriptionRecord {
   user: UserId;

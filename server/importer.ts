@@ -1,5 +1,5 @@
-import type { ApartmentInput, Features, ImportResult } from '../shared/types';
-import { parseListingText, sourceFromUrl } from '../shared/parseListing';
+import type { ApartmentInput, Features, ImportResult } from '../shared/types.js';
+import { parseListingText, sourceFromUrl } from '../shared/parseListing.js';
 
 /**
  * Best-effort listing import. Tries, in order of reliability:

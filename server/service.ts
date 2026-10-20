@@ -14,10 +14,10 @@ import {
   type Status,
   type UserId,
   type Vote,
-} from '../shared/types';
-import { geoQuery, nextStatus } from '../shared/workflow';
-import type { Store } from './store';
-import type { AppEvent } from './push';
+} from '../shared/types.js';
+import { geoQuery, nextStatus } from '../shared/workflow.js';
+import type { Store } from './store/index.js';
+import type { AppEvent } from './push.js';
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {

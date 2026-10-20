@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ApartmentService } from '../server/service';
-import { emptyMeta, type Meta, type Store } from '../server/store/Store';
-import type { AppEvent } from '../server/push';
-import { startViewingReminders, type PushService } from '../server/push';
-import type { Apartment } from '../shared/types';
-import { overBudget } from '../shared/workflow';
-import { driveTime } from '../server/geo';
+import { ApartmentService } from '../server/service.js';
+import { emptyMeta, type Meta, type Store } from '../server/store/Store.js';
+import type { AppEvent } from '../server/push.js';
+import { startViewingReminders, type PushService } from '../server/push.js';
+import type { Apartment } from '../shared/types.js';
+import { overBudget } from '../shared/workflow.js';
+import { driveTime } from '../server/geo.js';
 
 class MemoryStore implements Store {
   apts = new Map<string, Apartment>();

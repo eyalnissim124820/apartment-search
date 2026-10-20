@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractFromHtml, importFromText } from '../server/importer';
-import { parseListingText } from '../shared/parseListing';
+import { extractFromHtml, importFromText } from '../server/importer.js';
+import { parseListingText } from '../shared/parseListing.js';
 
 // Shape modelled on Yad2 item pages: Next.js state with the main item plus "similar" listings.
 const yad2Html = `<!doctype html><html><head>
