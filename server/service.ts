@@ -258,6 +258,56 @@ export class ApartmentService {
   async remove(id: string) {
     if (!(await this.store.remove(id))) throw new HttpError(404, 'Apartment not found');
   }
+
+  /**
+   * Add listings found by an automatic scan as "pending review", skipping any we already
+   * have (including rejected ones, so they don't come back). Returns the new apartments.
+   */
+  async importExternal(items: (ApartmentInput & { externalId: string; geo?: Apartment['geo'] })[]): Promise<Apartment[]> {
+    const existing = await this.store.list();
+    const seen = new Set<string>();
+    for (const a of existing) {
+      if (a.externalId) seen.add(a.externalId);
+      if (a.listingUrl) seen.add(normalizeUrl(a.listingUrl));
+    }
+    const added: Apartment[] = [];
+    for (const item of items) {
+      const keys = [item.externalId, item.listingUrl && normalizeUrl(item.listingUrl)].filter(Boolean) as string[];
+      if (!item.title || keys.some((k) => seen.has(k))) continue;
+      keys.forEach((k) => seen.add(k));
+      const ts = now();
+      const apt: Apartment = {
+        ...item,
+        id: randomUUID(),
+        createdAt: ts,
+        updatedAt: ts,
+        createdBy: 'system',
+        status: 'pending_review',
+        votes: {},
+        ratings: {},
+        favorites: [],
+        images: item.images ?? [],
+        features: item.features ?? {},
+        contacts: item.contacts ?? [],
+        comments: [],
+        history: [],
+      };
+      this.log(apt, { user: 'system', action: 'created', to: apt.status });
+      await this.commit(apt);
+      added.push(apt);
+    }
+    return added;
+  }
+}
+
+/** Compare listing links without query strings, fragments or trailing slashes. */
+function normalizeUrl(u: string) {
+  try {
+    const x = new URL(u);
+    return `${x.hostname.replace(/^www\./, '')}${x.pathname.replace(/\/+$/, '')}`.toLowerCase();
+  } catch {
+    return u.trim().toLowerCase();
+  }
 }
 
 export class SettingsService {
@@ -269,8 +319,8 @@ export class SettingsService {
   ) {}
 
   async get(): Promise<PublicSettings> {
-    const { settings } = await this.store.getMeta();
-    return { ...settings, vapidPublicKey: await this.vapidKey() };
+    const { settings, scan } = await this.store.getMeta();
+    return { ...settings, vapidPublicKey: await this.vapidKey(), scanConfigured: !!process.env.APIFY_TOKEN, scan };
   }
 
   async update(body: Record<string, unknown>) {
@@ -283,6 +333,14 @@ export class SettingsService {
         max: max > 0 ? Math.round(max) : undefined,
         basis: (b.basis === 'total' ? 'total' : 'rent') as BudgetBasis,
       };
+    }
+    if ('yad2Searches' in body) {
+      const list = Array.isArray(body.yad2Searches) ? body.yad2Searches : [];
+      s.yad2Searches = list
+        .map((x) => (typeof x === 'string' ? { url: x } : (x as { url?: unknown; label?: unknown })))
+        .map((x) => ({ url: String(x.url ?? '').trim(), label: String(x.label ?? '').trim() || undefined }))
+        .filter((x) => /^https:\/\/(www\.)?yad2\.co\.il\/realestate\//i.test(x.url))
+        .slice(0, 5);
     }
     let workChanged = false;
     if ('work' in body && body.work && typeof body.work === 'object') {

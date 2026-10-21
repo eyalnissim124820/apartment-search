@@ -148,7 +148,10 @@ export interface Apartment extends ApartmentInput {
   id: string;
   createdAt: string;
   updatedAt: string;
-  createdBy: UserId;
+  /** 'system' = added by the automatic Yad2 search scan. */
+  createdBy: UserId | 'system';
+  /** Stable id from an external source (e.g. "yad2:abc123"), used to avoid re-importing. */
+  externalId?: string;
   status: Status;
   /** Status the apartment was in before rejection, used for restore. */
   rejectedFrom?: PipelineStatus;
@@ -176,15 +179,35 @@ export interface Workplace extends Partial<GeoPoint> {
 
 export type BudgetBasis = 'rent' | 'total';
 
+export interface SavedSearch {
+  url: string; // a Yad2 search-results URL
+  label?: string;
+}
+
 /** Shared, non-secret app settings. */
 export interface Settings {
   budget?: { max?: number; basis: BudgetBasis };
   work: Partial<Record<UserId, Workplace>>;
+  /** Yad2 searches scanned automatically via Apify. */
+  yad2Searches?: SavedSearch[];
+}
+
+export interface ScanStatus {
+  status: 'running' | 'succeeded' | 'failed';
+  startedAt: string;
+  finishedAt?: string;
+  runId?: string;
+  found?: number;
+  added?: number;
+  error?: string;
 }
 
 /** What the client receives from GET /api/settings. */
 export interface PublicSettings extends Settings {
   vapidPublicKey: string;
+  /** True when APIFY_TOKEN is set on the server. */
+  scanConfigured: boolean;
+  scan?: ScanStatus;
 }
 
 export interface ImportResult {

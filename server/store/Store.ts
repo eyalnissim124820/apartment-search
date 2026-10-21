@@ -1,4 +1,4 @@
-import type { Apartment, Settings, UserId } from '../../shared/types.js';
+import type { Apartment, ScanStatus, Settings, UserId } from '../../shared/types.js';
 
 export interface PushSubscriptionRecord {
   user: UserId;
@@ -14,6 +14,8 @@ export interface Meta {
   settings: Settings;
   vapid?: { publicKey: string; privateKey: string };
   subscriptions: PushSubscriptionRecord[];
+  /** Latest automatic Yad2 scan. */
+  scan?: ScanStatus;
 }
 
 export const emptyMeta = (): Meta => ({ settings: { work: {} }, subscriptions: [] });

@@ -55,6 +55,17 @@ export class Enricher {
     await this.store.save(fresh);
   }
 
+  /** Enrich several apartments one after another (keeps the free routing server happy). */
+  async enrichMany(ids: string[]) {
+    for (const id of ids) {
+      try {
+        await this.enrich(id);
+      } catch (err) {
+        console.warn('[geo]', id, (err as Error).message);
+      }
+    }
+  }
+
   /** Geocode a workplace address. */
   locate(address: string) {
     return geocode(address);

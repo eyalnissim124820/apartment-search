@@ -144,6 +144,21 @@ export class PushService {
     return background(this.sendTo(recipients(e), (lang) => render(e, lang)), 'push');
   }
 
+  /** Tell both partners that the automatic scan found new listings. */
+  notifyScan(added: Apartment[]) {
+    if (!added.length) return Promise.resolve(undefined);
+    const n = added.length;
+    return background(
+      this.sendTo([...USERS], (lang) => ({
+        title: lang === 'he' ? `נמצאו ${n} דירות חדשות ביד2` : `${n} new Yad2 listing${n > 1 ? 's' : ''}`,
+        body: added.slice(0, 3).map((a) => a.title).join(' · '),
+        url: '/match',
+        tag: 'scan',
+      })),
+      'push',
+    );
+  }
+
   test(user: UserId) {
     return this.sendTo([user], (lang) => ({
       title: lang === 'he' ? 'התראות פועלות ✓' : 'Notifications work ✓',

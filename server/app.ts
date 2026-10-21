@@ -5,6 +5,7 @@ import { PushService, sendDueReminders } from './push.js';
 import { Enricher } from './enrich.js';
 import { importFromText, importFromUrl } from './importer.js';
 import { background } from './background.js';
+import { Yad2Scanner, scanConfigured } from './yad2Scan.js';
 
 /** Build the API. Shared by the local server (server/index.ts) and the Vercel function (api/index.ts). */
 export function createApp() {
@@ -21,6 +22,13 @@ export function createApp() {
     (address) => enricher.locate(address),
     () => void background(enricher.refreshAll(), 'geo refresh'),
   );
+
+  const scanner = new Yad2Scanner(store);
+
+  /** Public origin of this deployment, for the Apify webhook. */
+  const origin = (req: Request) =>
+    process.env.APP_URL?.replace(/\/+$/, '') ||
+    `https://${req.header('x-forwarded-host') ?? req.header('host')}`;
 
   const app = express();
   app.use(express.json({ limit: '15mb' })); // room for a few compressed photos (Vercel caps bodies at 4.5MB)
@@ -45,6 +53,7 @@ export function createApp() {
         vapidFromEnv: !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
         cronSecretSet: !!process.env.CRON_SECRET,
         scraperConfigured: !!process.env.SCRAPINGBEE_API_KEY,
+        apifyConfigured: scanConfigured(),
       };
       try {
         out.apartments = (await store.list()).length;
@@ -136,6 +145,48 @@ export function createApp() {
   });
   api.get('/cron/reminders', cron);
   api.post('/cron/reminders', cron);
+
+  const requireSecret = (req: Request) => {
+    const secret = process.env.CRON_SECRET;
+    const given = req.header('authorization')?.replace(/^Bearer /, '') ?? String(req.query.secret ?? '');
+    if (secret && given !== secret) throw new HttpError(401, 'Unauthorized');
+  };
+
+  /** Start an automatic Yad2 scan (Apify). Manual from the app, or scheduled via cron. */
+  const startScan = async (req: Request) => {
+    try {
+      return await scanner.start(origin(req));
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message);
+    }
+  };
+  api.post('/yad2/scan', h(async (req) => { actor(req); return startScan(req); }));
+  const cronScan = h(async (req) => { requireSecret(req); return startScan(req); });
+  api.get('/cron/yad2-scan', cronScan);
+  api.post('/cron/yad2-scan', cronScan);
+
+  /** Apify calls this when a scan run finishes. */
+  api.post(
+    '/apify/webhook',
+    h(async (req) => {
+      requireSecret(req);
+      const body = req.body as { eventData?: { actorRunId?: string }; resource?: { id?: string } };
+      const runId = body.eventData?.actorRunId ?? body.resource?.id;
+      if (!runId) throw new HttpError(400, 'Missing run id');
+      try {
+        const items = await scanner.collect(runId);
+        if (!items) return { ok: true, skipped: true };
+        const added = await service.importExternal(items);
+        await scanner.finish(runId, items.length, added.length);
+        await push.notifyScan(added);
+        void background(enricher.enrichMany(added.map((a) => a.id)), 'geo scan');
+        return { ok: true, found: items.length, added: added.length };
+      } catch (err) {
+        await scanner.fail(runId, (err as Error).message);
+        throw err;
+      }
+    }),
+  );
 
   app.use('/api', api);
 

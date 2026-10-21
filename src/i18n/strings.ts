@@ -286,6 +286,20 @@ const he = {
   notificationsUnsupported: 'הדפדפן לא תומך בהתראות.',
   iosHint: 'באייפון: פתחו בספארי ← שיתוף ← ״הוספה למסך הבית״, ואז הפעילו התראות מתוך האפליקציה.',
   saved: 'נשמר',
+  addedByScan: 'נוסף בסריקה אוטומטית',
+  yad2Scan: 'סריקת יד2 אוטומטית',
+  yad2ScanSub: 'מדביקים קישור לחיפוש ביד2 (עם הסינונים שלכם). פעם ביום נמשכות הדירות החדשות ל״ממתין לבדיקה״ ונשלחת התראה.',
+  yad2SearchPlaceholder: 'https://www.yad2.co.il/realestate/rent?…',
+  yad2SearchLabel: 'שם (לא חובה)',
+  addSearch: 'הוספת חיפוש',
+  runScanNow: 'סריקה עכשיו',
+  scanConfirm: 'להריץ סריקה עכשיו? כל דירה שנמצאת עולה כ-$0.008 ב-Apify.',
+  scanStarted: 'הסריקה התחילה – התוצאות יגיעו בעוד כמה דקות',
+  scanRunning: 'סריקה רצה… (התחילה {time})',
+  scanLast: 'סריקה אחרונה: {time} · נמצאו {found} · נוספו {added} חדשות',
+  scanFailed: 'הסריקה האחרונה נכשלה: {error}',
+  scanNotConfigured: 'כדי להפעיל: הגדירו APIFY_TOKEN ב-Vercel ופרסו מחדש.',
+  invalidYad2Url: 'יש להדביק קישור לחיפוש ביד2 (yad2.co.il/realestate/…)',
 };
 
 export type StringKey = keyof typeof he;
@@ -566,6 +580,20 @@ const en: Record<StringKey, string> = {
   notificationsUnsupported: 'This browser doesn’t support notifications.',
   iosHint: 'On iPhone: open in Safari → Share → “Add to Home Screen”, then enable notifications from the app.',
   saved: 'Saved',
+  addedByScan: 'Added by automatic scan',
+  yad2Scan: 'Automatic Yad2 scan',
+  yad2ScanSub: 'Paste a Yad2 search link (with your filters). Once a day new listings are pulled into “Pending review” and you get a notification.',
+  yad2SearchPlaceholder: 'https://www.yad2.co.il/realestate/rent?…',
+  yad2SearchLabel: 'Name (optional)',
+  addSearch: 'Add search',
+  runScanNow: 'Scan now',
+  scanConfirm: 'Run a scan now? Each listing found costs about $0.008 on Apify.',
+  scanStarted: 'Scan started – results arrive in a few minutes',
+  scanRunning: 'Scan running… (started {time})',
+  scanLast: 'Last scan: {time} · found {found} · {added} new',
+  scanFailed: 'Last scan failed: {error}',
+  scanNotConfigured: 'To enable: set APIFY_TOKEN on Vercel and redeploy.',
+  invalidYad2Url: 'Paste a Yad2 search link (yad2.co.il/realestate/…)',
 };
 
 export const strings = { he, en };

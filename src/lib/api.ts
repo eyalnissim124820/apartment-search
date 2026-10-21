@@ -1,5 +1,6 @@
 import type {
-  Apartment, ApartmentInput, CheckState, ChecklistKey, Contact, ImportResult, PublicSettings, Settings, Status, UserId, Vote,
+  Apartment, ApartmentInput, CheckState, ChecklistKey, Contact, ImportResult, PublicSettings, ScanStatus, Settings, Status, UserId,
+  Vote,
 } from '../../shared/types';
 
 let currentUser: UserId | null = null;
@@ -48,4 +49,5 @@ export const api = {
     req<void>('POST', '/push/subscribe', { subscription, lang }),
   pushUnsubscribe: (endpoint: string) => req<void>('POST', '/push/unsubscribe', { endpoint }),
   pushTest: () => req<void>('POST', '/push/test'),
+  yad2Scan: () => req<ScanStatus>('POST', '/yad2/scan'),
 };

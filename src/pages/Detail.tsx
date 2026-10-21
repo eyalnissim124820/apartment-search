@@ -86,7 +86,7 @@ function DetailView({ apt }: { apt: Apartment }) {
             </a>
           )}
           <p className="mt-1 text-sm text-ink/40">
-            {t('addedBy', { name: t(userKey(apt.createdBy)) })} · {dateShort(apt.createdAt, lang)}
+            {apt.createdBy === 'system' ? t('addedByScan') : t('addedBy', { name: t(userKey(apt.createdBy)) })} · {dateShort(apt.createdAt, lang)}
             {apt.source && ` · ${t(sourceKey(apt.source))}`}
           </p>
         </div>
