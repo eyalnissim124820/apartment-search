@@ -184,11 +184,31 @@ export interface SavedSearch {
   label?: string;
 }
 
+/**
+ * Yad2 scan filters, editable in Settings. The scan turns them into Yad2 search URLs and
+ * re-checks every result against them (Yad2's URL format is undocumented).
+ */
+export interface ScanFilters {
+  /** Yad2 city codes (Israeli CBS settlement codes), e.g. "5000" for Tel Aviv. */
+  cities: string[];
+  minPrice?: number;
+  maxPrice?: number;
+  minRooms?: number;
+  maxRooms?: number;
+  minSize?: number;
+  /** Optional neighbourhood names; a listing must mention one of them. */
+  neighborhoods?: string[];
+  /** Features every listing must have. */
+  mustHave?: (keyof Features)[];
+}
+
 /** Shared, non-secret app settings. */
 export interface Settings {
   budget?: { max?: number; basis: BudgetBasis };
   work: Partial<Record<UserId, Workplace>>;
-  /** Yad2 searches scanned automatically via Apify. */
+  /** Filters for the automatic Yad2 scan. */
+  yad2Filters?: ScanFilters;
+  /** Extra hand-picked Yad2 search links (advanced). */
   yad2Searches?: SavedSearch[];
 }
 
@@ -198,6 +218,8 @@ export interface ScanStatus {
   finishedAt?: string;
   runId?: string;
   found?: number;
+  /** Results that passed the filters (before skipping ones already saved). */
+  matched?: number;
   added?: number;
   error?: string;
 }

@@ -1,6 +1,7 @@
 import type { Apartment, ApartmentInput, Features, ScanStatus } from '../shared/types.js';
 import { geoQuery } from '../shared/workflow.js';
 import { suggestTitle } from './importer.js';
+import { buildYad2SearchUrl, matchesScanFilters } from '../shared/yad2.js';
 import type { Store } from './store/Store.js';
 
 /**
@@ -152,19 +153,24 @@ export class Yad2Scanner {
   async start(baseUrl: string): Promise<ScanStatus> {
     if (!scanConfigured()) throw new Error('APIFY_TOKEN is not set');
     const meta = await this.store.getMeta();
-    const searches = meta.settings.yad2Searches ?? [];
-    if (!searches.length) throw new Error('No Yad2 searches saved');
+    const filters = meta.settings.yad2Filters;
+    // Search links built from the Settings filters, plus any hand-picked links.
+    const urls = [
+      ...(filters?.cities ?? []).map((city) => buildYad2SearchUrl(city, filters!)),
+      ...(meta.settings.yad2Searches ?? []).map((s) => s.url),
+    ];
+    if (!urls.length) throw new Error('Choose at least one city in the scan filters');
     // Don't stack runs: a scan that started < 15 minutes ago is still considered in progress.
     if (meta.scan?.status === 'running' && Date.now() - new Date(meta.scan.startedAt).getTime() < 15 * 60_000) {
       return meta.scan;
     }
 
-    const maxItems = MAX_ITEMS() * searches.length;
+    const maxItems = MAX_ITEMS() * urls.length;
     const input = {
-      start_urls: searches.map((s) => ({ url: s.url })),
+      start_urls: urls.map((url) => ({ url })),
       maxPagesPerSearch: 1,
       // one list page + one detail page per result, per search
-      maxRequestsPerCrawl: searches.length * (MAX_ITEMS() + 1),
+      maxRequestsPerCrawl: urls.length * (MAX_ITEMS() + 1),
       proxy: { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'], apifyProxyCountry: 'IL' },
     };
     const secret = encodeURIComponent(process.env.CRON_SECRET ?? '');
@@ -202,8 +208,20 @@ export class Yad2Scanner {
     return items.map(mapYad2Item).filter((x): x is NonNullable<typeof x> => !!x);
   }
 
-  finish(runId: string, found: number, added: number) {
-    return this.setStatus({ status: 'succeeded', runId, finishedAt: new Date().toISOString(), found, added });
+  /**
+   * Keep only results that match the Settings filters. City is only enforced when every
+   * search came from the filters (a hand-picked link may deliberately target another city).
+   */
+  async applyFilters(items: ScannedListing[]): Promise<ScannedListing[]> {
+    const { settings } = await this.store.getMeta();
+    const f = settings.yad2Filters;
+    if (!f) return items;
+    const checkCity = !(settings.yad2Searches ?? []).length;
+    return items.filter((it) => matchesScanFilters(it, f, checkCity));
+  }
+
+  finish(runId: string, found: number, matched: number, added: number) {
+    return this.setStatus({ status: 'succeeded', runId, finishedAt: new Date().toISOString(), found, matched, added });
   }
 
   fail(runId: string | undefined, error: string) {

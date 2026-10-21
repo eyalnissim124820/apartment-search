@@ -11,11 +11,13 @@ import {
   type Contact,
   type HistoryEntry,
   type PublicSettings,
+  type ScanFilters,
   type Status,
   type UserId,
   type Vote,
 } from '../shared/types.js';
 import { geoQuery, nextStatus } from '../shared/workflow.js';
+import { SCAN_FEATURES, YAD2_CITIES } from '../shared/yad2.js';
 import type { Store } from './store/index.js';
 import type { AppEvent } from './push.js';
 
@@ -334,6 +336,7 @@ export class SettingsService {
         basis: (b.basis === 'total' ? 'total' : 'rent') as BudgetBasis,
       };
     }
+    if ('yad2Filters' in body) s.yad2Filters = parseScanFilters(body.yad2Filters);
     if ('yad2Searches' in body) {
       const list = Array.isArray(body.yad2Searches) ? body.yad2Searches : [];
       s.yad2Searches = list
@@ -362,4 +365,30 @@ export class SettingsService {
     if (workChanged) this.onWorkChange();
     return this.get();
   }
+}
+
+const posNum = (v: unknown) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+};
+
+function parseScanFilters(raw: unknown): ScanFilters {
+  const f = (raw ?? {}) as Record<string, unknown>;
+  const list = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : []);
+  const cities = list(f.cities).filter((c) => YAD2_CITIES.some((x) => x.code === c)).slice(0, 5);
+  const out: ScanFilters = {
+    cities,
+    minPrice: posNum(f.minPrice),
+    maxPrice: posNum(f.maxPrice),
+    minRooms: posNum(f.minRooms),
+    maxRooms: posNum(f.maxRooms),
+    minSize: posNum(f.minSize),
+    neighborhoods: list(f.neighborhoods).slice(0, 20),
+    mustHave: list(f.mustHave).filter((k) => (SCAN_FEATURES as string[]).includes(k)) as ScanFilters['mustHave'],
+  };
+  for (const k of Object.keys(out) as (keyof ScanFilters)[]) {
+    const v = out[k];
+    if (v === undefined || (Array.isArray(v) && !v.length && k !== 'cities')) delete out[k];
+  }
+  return out;
 }

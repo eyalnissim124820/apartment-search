@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Bell, BellOff, Briefcase, Plus, Radar, RefreshCw, Send, Wallet, X } from 'lucide-react';
-import { USERS, type BudgetBasis, type SavedSearch, type UserId } from '../../shared/types';
+import { USERS, type BudgetBasis, type Features, type SavedSearch, type ScanFilters, type UserId } from '../../shared/types';
+import { SCAN_FEATURES, YAD2_CITIES } from '../../shared/yad2';
 import { useApp } from '../state';
 import { api } from '../lib/api';
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push';
-import { Avatar } from '../components/ui';
-import { userKey } from '../i18n/strings';
+import { Avatar, FEATURE_ICON } from '../components/ui';
+import { featureKey, userKey } from '../i18n/strings';
 import { dateTime } from '../lib/format';
 
 export default function Settings() {
@@ -137,20 +138,33 @@ export default function Settings() {
 }
 
 const YAD2_SEARCH = /^https:\/\/(www\.)?yad2\.co\.il\/realestate\//i;
+const ROOM_OPTIONS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6];
 
-/** Saved Yad2 searches that the server scans through Apify. Saves immediately on add/remove. */
+/** Filters for the automatic Yad2 scan, plus optional hand-picked Yad2 links. */
 function Yad2ScanSection() {
   const { t, lang, settings, setSettings, showToast, refresh } = useApp();
+  const [f, setF] = useState<ScanFilters>({ cities: [] });
+  const [hoods, setHoods] = useState('');
   const [url, setUrl] = useState('');
   const [label, setLabel] = useState('');
+  const [advanced, setAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
   const searches = settings?.yad2Searches ?? [];
   const scan = settings?.scan;
 
-  const saveSearches = async (next: SavedSearch[]) => {
+  useEffect(() => {
+    if (!settings) return;
+    setF(settings.yad2Filters ?? { cities: [], maxPrice: settings.budget?.max });
+    setHoods((settings.yad2Filters?.neighborhoods ?? []).join(', '));
+    if (searches.length) setAdvanced(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings]);
+
+  const save = async (patch: { yad2Filters?: ScanFilters; yad2Searches?: SavedSearch[] }, toast = true) => {
     setBusy(true);
     try {
-      setSettings(await api.saveSettings({ yad2Searches: next }));
+      setSettings(await api.saveSettings(patch));
+      if (toast) showToast(t('saved'));
     } catch (e) {
       showToast(`${t('error')}: ${(e as Error).message}`);
     } finally {
@@ -158,9 +172,34 @@ function Yad2ScanSection() {
     }
   };
 
-  const add = () => {
+  const saveFilters = () =>
+    save({ yad2Filters: { ...f, neighborhoods: hoods.split(/[,،\n]/).map((x) => x.trim()).filter(Boolean) } });
+
+  const toggleCity = (code: string) =>
+    setF((x) => ({
+      ...x,
+      cities: x.cities.includes(code) ? x.cities.filter((c) => c !== code) : x.cities.length < 5 ? [...x.cities, code] : x.cities,
+    }));
+  const toggleFeature = (k: keyof Features) =>
+    setF((x) => ({ ...x, mustHave: x.mustHave?.includes(k) ? x.mustHave.filter((m) => m !== k) : [...(x.mustHave ?? []), k] }));
+  const numField = (k: 'minPrice' | 'maxPrice' | 'minSize') => ({
+    value: f[k] ?? '',
+    onChange: (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value ? Number(e.target.value) : undefined })),
+  });
+  const roomSelect = (k: 'minRooms' | 'maxRooms') => (
+    <select
+      className="field"
+      value={f[k] ?? ''}
+      onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value ? Number(e.target.value) : undefined }))}
+    >
+      <option value="">—</option>
+      {ROOM_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+    </select>
+  );
+
+  const addLink = () => {
     if (!YAD2_SEARCH.test(url.trim())) return showToast(t('invalidYad2Url'));
-    saveSearches([...searches, { url: url.trim(), label: label.trim() || undefined }]);
+    save({ yad2Searches: [...searches, { url: url.trim(), label: label.trim() || undefined }] }, false);
     setUrl('');
     setLabel('');
   };
@@ -179,35 +218,97 @@ function Yad2ScanSection() {
     }
   };
 
+  const savedFilters = settings?.yad2Filters;
+  const canRun = !!settings?.scanConfigured && (!!savedFilters?.cities.length || searches.length > 0);
+
   return (
-    <section className="card mt-4 p-5 grid gap-3">
-      <h2 className="flex items-center gap-2 text-lg font-semibold"><Radar size={20} /> {t('yad2Scan')}</h2>
-      <p className="text-sm text-ink/60">{t('yad2ScanSub')}</p>
+    <section className="card mt-4 p-5 grid gap-4">
+      <div>
+        <h2 className="flex items-center gap-2 text-lg font-semibold"><Radar size={20} /> {t('yad2Scan')}</h2>
+        <p className="mt-1 text-sm text-ink/60">{t('yad2ScanSub')}</p>
+      </div>
       {settings && !settings.scanConfigured && (
         <p className="rounded-2xl bg-[#FFF3DF] p-3 text-sm text-[#7A4808]">{t('scanNotConfigured')}</p>
       )}
 
-      {searches.map((s, i) => (
-        <div key={s.url} className="flex items-center gap-2 rounded-2xl bg-haze p-3">
-          <div className="min-w-0 flex-1">
-            {s.label && <div className="font-medium">{s.label}</div>}
-            <a href={s.url} target="_blank" rel="noreferrer" className="block truncate text-xs text-ink/50" dir="ltr">{s.url}</a>
-          </div>
-          <button className="p-1 text-ink/40" disabled={busy} onClick={() => saveSearches(searches.filter((_, j) => j !== i))} aria-label="remove">
-            <X size={18} />
-          </button>
-        </div>
-      ))}
-
-      {searches.length < 5 && (
-        <div className="grid gap-2">
-          <input className="field" type="url" dir="ltr" placeholder={t('yad2SearchPlaceholder')} value={url} onChange={(e) => setUrl(e.target.value)} />
-          <div className="flex gap-2">
-            <input className="field" placeholder={t('yad2SearchLabel')} value={label} onChange={(e) => setLabel(e.target.value)} dir="auto" />
-            <button className="btn-light !shadow-none bg-haze shrink-0" disabled={busy || !url.trim()} onClick={add}>
-              <Plus size={18} /> {t('addSearch')}
+      <div>
+        <span className="field-label">{t('scanCities')}</span>
+        <div className="flex flex-wrap gap-2">
+          {YAD2_CITIES.map((c) => (
+            <button
+              key={c.code}
+              type="button"
+              onClick={() => toggleCity(c.code)}
+              className={`chip !shadow-none !h-9 ${f.cities.includes(c.code) ? 'chip-active' : '!bg-haze'}`}
+            >
+              {lang === 'he' ? c.he : c.en}
             </button>
-          </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <label><span className="field-label">{t('minPrice')}</span><input className="field" type="number" inputMode="numeric" placeholder="₪" {...numField('minPrice')} /></label>
+        <label><span className="field-label">{t('maxPrice')}</span><input className="field" type="number" inputMode="numeric" placeholder="₪" {...numField('maxPrice')} /></label>
+        <label><span className="field-label">{t('minRooms')}</span>{roomSelect('minRooms')}</label>
+        <label><span className="field-label">{t('maxRooms')}</span>{roomSelect('maxRooms')}</label>
+        <label className="col-span-2"><span className="field-label">{t('minSize')}</span><input className="field" type="number" inputMode="numeric" placeholder={t('sqm')} {...numField('minSize')} /></label>
+      </div>
+
+      <label>
+        <span className="field-label">{t('scanNeighborhoods')}</span>
+        <input className="field" placeholder={t('scanNeighborhoodsHint')} value={hoods} onChange={(e) => setHoods(e.target.value)} dir="auto" />
+      </label>
+
+      <div>
+        <span className="field-label">{t('mustHave')}</span>
+        <div className="flex flex-wrap gap-2">
+          {SCAN_FEATURES.map((k) => {
+            const Icon = FEATURE_ICON[k];
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => toggleFeature(k)}
+                className={`chip !shadow-none !h-9 ${f.mustHave?.includes(k) ? 'chip-active' : '!bg-haze'}`}
+              >
+                <Icon size={15} /> {t(featureKey(k))}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <button className="btn-dark" disabled={busy || !settings} onClick={saveFilters}>{t('saveFilters')}</button>
+
+      <button type="button" className="text-start text-sm font-medium text-accent" onClick={() => setAdvanced((a) => !a)}>
+        {advanced ? '−' : '+'} {t('scanAdvanced')}
+      </button>
+      {advanced && (
+        <div className="grid gap-2">
+          <p className="text-xs text-ink/50">{t('scanAdvancedHint')}</p>
+          {searches.map((s, i) => (
+            <div key={s.url} className="flex items-center gap-2 rounded-2xl bg-haze p-3">
+              <div className="min-w-0 flex-1">
+                {s.label && <div className="font-medium">{s.label}</div>}
+                <a href={s.url} target="_blank" rel="noreferrer" className="block truncate text-xs text-ink/50" dir="ltr">{s.url}</a>
+              </div>
+              <button className="p-1 text-ink/40" disabled={busy} onClick={() => save({ yad2Searches: searches.filter((_, j) => j !== i) }, false)} aria-label="remove">
+                <X size={18} />
+              </button>
+            </div>
+          ))}
+          {searches.length < 5 && (
+            <>
+              <input className="field" type="url" dir="ltr" placeholder={t('yad2SearchPlaceholder')} value={url} onChange={(e) => setUrl(e.target.value)} />
+              <div className="flex gap-2">
+                <input className="field" placeholder={t('yad2SearchLabel')} value={label} onChange={(e) => setLabel(e.target.value)} dir="auto" />
+                <button className="btn-light !shadow-none bg-haze shrink-0" disabled={busy || !url.trim()} onClick={addLink}>
+                  <Plus size={18} /> {t('addSearch')}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -217,11 +318,11 @@ function Yad2ScanSection() {
             ? t('scanRunning', { time: dateTime(scan.startedAt, lang) })
             : scan.status === 'failed'
               ? t('scanFailed', { error: scan.error ?? '' })
-              : t('scanLast', { time: dateTime(scan.finishedAt, lang), found: scan.found ?? 0, added: scan.added ?? 0 })}
+              : t('scanLast', { time: dateTime(scan.finishedAt, lang), found: scan.found ?? 0, matched: scan.matched ?? scan.found ?? 0, added: scan.added ?? 0 })}
         </p>
       )}
 
-      <button className="btn-dark" disabled={busy || !searches.length || !settings?.scanConfigured || scan?.status === 'running'} onClick={runNow}>
+      <button className="btn-light !shadow-none bg-haze" disabled={busy || !canRun || scan?.status === 'running'} onClick={runNow}>
         <RefreshCw size={18} className={scan?.status === 'running' ? 'animate-spin' : ''} /> {t('runScanNow')}
       </button>
     </section>

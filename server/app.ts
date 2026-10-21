@@ -176,11 +176,12 @@ export function createApp() {
       try {
         const items = await scanner.collect(runId);
         if (!items) return { ok: true, skipped: true };
-        const added = await service.importExternal(items);
-        await scanner.finish(runId, items.length, added.length);
+        const matching = await scanner.applyFilters(items);
+        const added = await service.importExternal(matching);
+        await scanner.finish(runId, items.length, matching.length, added.length);
         await push.notifyScan(added);
         void background(enricher.enrichMany(added.map((a) => a.id)), 'geo scan');
-        return { ok: true, found: items.length, added: added.length };
+        return { ok: true, found: items.length, matched: matching.length, added: added.length };
       } catch (err) {
         await scanner.fail(runId, (err as Error).message);
         throw err;

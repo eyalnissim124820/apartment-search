@@ -72,3 +72,29 @@ test('importExternal skips listings already saved (by id or by link)', async () 
   const again = await svc.importExternal([other]);
   assert.equal(again.length, 0);
 });
+
+import { buildYad2SearchUrl, matchesScanFilters } from '../shared/yad2.js';
+
+test('builds a Yad2 search URL from the filters', () => {
+  const url = buildYad2SearchUrl('5000', {
+    cities: ['5000'], minPrice: 6000, maxPrice: 9000, minRooms: 3, maxRooms: 4, mustHave: ['parking', 'safeRoom'],
+  });
+  const u = new URL(url);
+  assert.equal(u.origin + u.pathname, 'https://www.yad2.co.il/realestate/rent');
+  assert.deepEqual(Object.fromEntries(u.searchParams), {
+    city: '5000', minPrice: '6000', maxPrice: '9000', minRooms: '3', maxRooms: '4', parking: '1',
+  });
+});
+
+test('filters scanned listings', () => {
+  const f = { cities: ['5000'], maxPrice: 9000, minRooms: 3, neighborhoods: ['הצפון הישן'], mustHave: ['safeRoom' as const] };
+  const base = mapYad2Item(item)!; // 7800, 3 rooms, Tel Aviv, הצפון הישן, safe room
+  assert.equal(matchesScanFilters(base, f), true);
+  assert.equal(matchesScanFilters({ ...base, price: 9500 }, f), false);
+  assert.equal(matchesScanFilters({ ...base, rooms: 2 }, f), false);
+  assert.equal(matchesScanFilters({ ...base, city: 'חולון' }, f), false);
+  assert.equal(matchesScanFilters({ ...base, city: 'חולון' }, f, false), true); // city not enforced
+  assert.equal(matchesScanFilters({ ...base, neighborhood: 'פלורנטין', description: '' }, f), false);
+  assert.equal(matchesScanFilters({ ...base, features: {} }, f), false);
+  assert.equal(matchesScanFilters({ ...base, price: undefined }, f), true); // unknown values pass
+});
