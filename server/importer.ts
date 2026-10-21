@@ -254,32 +254,69 @@ function summarize(data: Partial<ApartmentInput>, warning?: ImportResult['warnin
   return { data, found, warning };
 }
 
+const BROWSER_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+  Accept: 'text/html,application/xhtml+xml',
+  'Accept-Language': 'he-IL,he;q=0.9,en;q=0.8',
+};
+
+type Fetched = { html: string; via: string } | null;
+
+const looksBlocked = (status: number, html: string) =>
+  status === 403 || status === 429 || (BLOCK_MARKERS.test(html) && !/og:title/i.test(html));
+
+/** Plain server-side fetch. Free, but data-centre IPs get bot walls on Yad2 / Madlan. */
+async function fetchDirect(url: string): Promise<Fetched> {
+  try {
+    const res = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(8_000), headers: BROWSER_HEADERS });
+    const html = await res.text();
+    return looksBlocked(res.status, html) ? null : { html, via: 'direct' };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ScrapingBee (paid, SCRAPINGBEE_API_KEY): real browser through Israeli residential IPs.
+ * Tries the cheaper premium proxy first, then stealth mode for the hardest bot walls.
+ * Credit cost per call depends on the mode – see ScrapingBee's pricing page.
+ */
+async function fetchViaScrapingBee(url: string): Promise<Fetched> {
+  const key = process.env.SCRAPINGBEE_API_KEY;
+  if (!key) return null;
+  const modes: [string, Record<string, string>][] = [
+    ['scrapingbee-premium', { render_js: 'true', premium_proxy: 'true', country_code: 'il' }],
+    ['scrapingbee-stealth', { render_js: 'true', stealth_proxy: 'true', country_code: 'il' }],
+  ];
+  for (const [via, opts] of modes) {
+    const qs = new URLSearchParams({ api_key: key, url, block_resources: 'false', ...opts });
+    try {
+      // Stay inside the function's 60s limit: 8s direct + 2 × 25s here.
+      const res = await fetch(`https://app.scrapingbee.com/api/v1/?${qs}`, { signal: AbortSignal.timeout(25_000) });
+      const html = await res.text();
+      if (res.ok && !looksBlocked(200, html)) return { html, via };
+      console.warn(`[import] ${via} failed`, res.status, html.slice(0, 160).replace(/\s+/g, ' '));
+    } catch (err) {
+      console.warn(`[import] ${via} error`, (err as Error).message);
+    }
+  }
+  return null;
+}
+
 export async function importFromUrl(url: string): Promise<ImportResult> {
   if (!/^https?:\/\//i.test(url)) throw new Error('Invalid URL');
   const base = { listingUrl: url, source: sourceFromUrl(url) ?? 'other' } as const;
-  let html: string;
-  try {
-    const res = await fetch(url, {
-      redirect: 'follow',
-      signal: AbortSignal.timeout(12_000),
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
-        Accept: 'text/html,application/xhtml+xml',
-        'Accept-Language': 'he-IL,he;q=0.9,en;q=0.8',
-      },
-    });
-    html = await res.text();
-    if (res.status === 403 || res.status === 429 || (BLOCK_MARKERS.test(html) && !/og:title/i.test(html))) {
-      return summarize(base, 'blocked');
-    }
-  } catch {
-    return summarize(base, 'blocked');
+  for (const attempt of [fetchDirect, fetchViaScrapingBee]) {
+    const page = await attempt(url);
+    if (!page) continue;
+    const data = extractFromHtml(page.html, url);
+    // Bot walls (e.g. Yad2's Radware page) can answer 200 with their own title – don't mistake them for a listing.
+    if (BLOCK_MARKERS.test(`${data.title ?? ''} ${data.description ?? ''}`)) continue;
+    console.log(`[import] ${base.source} via ${page.via}`);
+    return summarize(data);
   }
-  const data = extractFromHtml(html, url);
-  // Bot walls (e.g. Yad2's Radware page) answer 200 with their own title – don't mistake them for a listing.
-  if (BLOCK_MARKERS.test(`${data.title ?? ''} ${data.description ?? ''}`)) return summarize(base, 'blocked');
-  return summarize(data);
+  return summarize(base, 'blocked');
 }
 
 /** "3.5 חד׳ בכצנלסון 42, גבעתיים" – a readable default when the source had no title. */

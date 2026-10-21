@@ -44,6 +44,7 @@ export function createApp() {
         runtime: process.env.VERCEL ? 'vercel' : 'node',
         vapidFromEnv: !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
         cronSecretSet: !!process.env.CRON_SECRET,
+        scraperConfigured: !!process.env.SCRAPINGBEE_API_KEY,
       };
       try {
         out.apartments = (await store.list()).length;

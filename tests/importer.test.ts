@@ -120,3 +120,27 @@ test('cleans Facebook titles: hex entities, group name, ** and site suffix', asy
   assert.equal(r.description, 'להשכרה בתל אביב');
   assert.equal(r.source, 'facebook');
 });
+
+test('falls back to ScrapingBee when the direct fetch hits a bot wall', async () => {
+  const { importFromUrl } = await import('../server/importer.js');
+  const wall = '<html><head><title>Radware Page</title></head></html>';
+  const listing = '<meta property="og:title" content="דירה להשכרה, 3 חדרים, בזל 12, תל אביב | יד2" />'
+    + '<meta property="og:description" content="מחיר 7,800 ₪, 72 מ&quot;ר" />';
+  const calls: string[] = [];
+  const realFetch = globalThis.fetch;
+  process.env.SCRAPINGBEE_API_KEY = 'test-key';
+  globalThis.fetch = (async (input: string | URL) => {
+    const u = String(input);
+    calls.push(u.includes('scrapingbee') ? (u.includes('stealth') ? 'stealth' : 'premium') : 'direct');
+    return new Response(u.includes('scrapingbee') ? listing : wall, { status: 200 });
+  }) as typeof fetch;
+  try {
+    const r = await importFromUrl('https://www.yad2.co.il/realestate/item/abc');
+    assert.equal(r.warning, undefined);
+    assert.equal(r.data.price, 7800);
+    assert.deepEqual(calls, ['direct', 'premium']);
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.SCRAPINGBEE_API_KEY;
+  }
+});
