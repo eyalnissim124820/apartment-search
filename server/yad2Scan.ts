@@ -79,8 +79,11 @@ const num = (v: unknown) => {
 
 /** Convert one actor result into our apartment shape. */
 export function mapYad2Item(it: Yad2Item): ScannedListing | null {
-  const url = typeof it.item_url === 'string' ? it.item_url : undefined;
-  const id = it.item_id ?? url?.match(/item\/([^/?#]+)/)?.[1];
+  // README field names first, then common alternatives in case the actor's output drifts.
+  const urlRaw = [it.item_url, it.url, it.link].find((x) => typeof x === 'string' && /^https?:/.test(x as string));
+  const url = urlRaw as string | undefined;
+  const idRaw = it.item_id ?? it.token ?? it.id ?? it.orderId ?? url?.match(/item\/([^/?#]+)/)?.[1];
+  const id = idRaw != null && idRaw !== '' ? String(idRaw) : undefined;
   if (!id) return null;
 
   // "street, neighborhood, city" – last part is the city, first is the street.
@@ -245,7 +248,7 @@ export class Yad2Scanner {
   }
 
   /** Called from the webhook. Returns mapped items to import, or null if the run didn't succeed / was handled. */
-  async collect(runId: string, source: ScanSource): Promise<ScannedListing[] | null> {
+  async collect(runId: string, source: ScanSource): Promise<{ items: ScannedListing[]; raw: number; sampleKeys: string[] } | null> {
     const meta = await this.store.getMeta();
     const prev = meta.scan?.sources?.[source];
     if (prev?.runId === runId && prev.status !== 'running') return null; // duplicate delivery
@@ -254,9 +257,15 @@ export class Yad2Scanner {
       await this.setSource(source, { status: 'failed', runId, error: `${source}: run ${run.status}` });
       return null;
     }
-    const items = await apify<unknown[]>(`/datasets/${run.defaultDatasetId}/items?clean=true&format=json&limit=500`);
+    const raw = await apify<unknown[]>(`/datasets/${run.defaultDatasetId}/items?clean=true&format=json&limit=500`);
     const map = source === 'madlan' ? (x: unknown) => mapMadlanItem(x as MadlanItem) : (x: unknown) => mapYad2Item(x as Yad2Item);
-    return items.map(map).filter((x): x is ScannedListing => !!x);
+    const first = raw[0];
+    return {
+      items: raw.map(map).filter((x): x is ScannedListing => !!x),
+      raw: raw.length,
+      // Field names of the first result – lets us see why results were dropped if the output format changes.
+      sampleKeys: first && typeof first === 'object' ? Object.keys(first).slice(0, 40) : [],
+    };
   }
 
   /**
@@ -271,8 +280,8 @@ export class Yad2Scanner {
     return items.filter((it) => matchesScanFilters(it, f, checkCity));
   }
 
-  finish(source: ScanSource, runId: string, found: number, matched: number, added: number) {
-    return this.setSource(source, { status: 'succeeded', runId, finishedAt: new Date().toISOString(), found, matched, added, error: undefined });
+  finish(source: ScanSource, runId: string, r: { raw: number; sampleKeys: string[]; found: number; matched: number; added: number }) {
+    return this.setSource(source, { status: 'succeeded', runId, finishedAt: new Date().toISOString(), ...r, error: undefined });
   }
 
   fail(source: ScanSource, runId: string | undefined, error: string) {

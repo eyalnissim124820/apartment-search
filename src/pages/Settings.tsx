@@ -353,7 +353,9 @@ function Yad2ScanSection() {
                 ? t('scanSourceRunning', { source: t(sourceKey(src as ScanSource)) })
                 : r!.status === 'failed'
                   ? t('scanSourceFailed', { source: t(sourceKey(src as ScanSource)), error: r!.error ?? '' })
-                  : t('scanSourceDone', { source: t(sourceKey(src as ScanSource)), found: r!.found ?? 0, matched: r!.matched ?? 0, added: r!.added ?? 0 })}
+                  : r!.raw && !r!.found
+                    ? t('scanSourceUnreadable', { source: t(sourceKey(src as ScanSource)), raw: r!.raw })
+                    : t('scanSourceDone', { source: t(sourceKey(src as ScanSource)), found: r!.raw ?? r!.found ?? 0, matched: r!.matched ?? 0, added: r!.added ?? 0 })}
             </p>
           ))}
         </div>

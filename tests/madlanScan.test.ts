@@ -102,10 +102,10 @@ test('a scan starts one run per source and combines their status', async () => {
     assert.deepEqual(started, ['amit123~YadScraper', 'swerve~madlan-scraper']);
     assert.equal(s.status, 'running');
     assert.equal(Object.keys(s.sources!).length, 2);
-    await scanner.finish('yad2', 'run-amit123~YadScraper', 10, 4, 3);
+    await scanner.finish('yad2', 'run-amit123~YadScraper', { raw: 10, sampleKeys: [], found: 10, matched: 4, added: 3 });
     let st = store.meta.scan!;
     assert.equal(st.status, 'running'); // Madlan still going
-    await scanner.finish('madlan', 'run-swerve~madlan-scraper', 6, 2, 1);
+    await scanner.finish('madlan', 'run-swerve~madlan-scraper', { raw: 6, sampleKeys: [], found: 6, matched: 2, added: 1 });
     st = store.meta.scan!;
     assert.equal(st.status, 'succeeded');
     assert.deepEqual([st.found, st.matched, st.added], [16, 6, 4]);

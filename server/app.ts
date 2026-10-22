@@ -178,14 +178,15 @@ export function createApp() {
       if (!runId) throw new HttpError(400, 'Missing run id');
       const source: ScanSource = req.query.source === 'madlan' ? 'madlan' : 'yad2';
       try {
-        const items = await scanner.collect(runId, source);
-        if (!items) return { ok: true, skipped: true };
+        const collected = await scanner.collect(runId, source);
+        if (!collected) return { ok: true, skipped: true };
+        const { items, raw, sampleKeys } = collected;
         const matching = await scanner.applyFilters(items, source);
         const added = await service.importExternal(matching);
-        await scanner.finish(source, runId, items.length, matching.length, added.length);
+        await scanner.finish(source, runId, { raw, sampleKeys, found: items.length, matched: matching.length, added: added.length });
         await push.notifyScan(added);
         void background(enricher.enrichMany(added.map((a) => a.id)), 'geo scan');
-        return { ok: true, found: items.length, matched: matching.length, added: added.length };
+        return { ok: true, raw, found: items.length, matched: matching.length, added: added.length };
       } catch (err) {
         await scanner.fail(source, runId, (err as Error).message);
         throw err;

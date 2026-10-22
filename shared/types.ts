@@ -222,6 +222,11 @@ export interface SourceRunStatus {
   status: 'running' | 'succeeded' | 'failed';
   runId?: string;
   finishedAt?: string;
+  /** Results the actor returned, before converting them. */
+  raw?: number;
+  /** Field names of the first raw result (diagnostics). */
+  sampleKeys?: string[];
+  /** Results converted into listings. */
   found?: number;
   /** Results that passed the filters (before skipping ones already saved). */
   matched?: number;
