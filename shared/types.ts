@@ -202,6 +202,10 @@ export interface ScanFilters {
   mustHave?: (keyof Features)[];
 }
 
+/** Listing sites the automatic scan can pull from. */
+export const SCAN_SOURCES = ['yad2', 'madlan'] as const;
+export type ScanSource = (typeof SCAN_SOURCES)[number];
+
 /** Shared, non-secret app settings. */
 export interface Settings {
   budget?: { max?: number; basis: BudgetBasis };
@@ -210,18 +214,25 @@ export interface Settings {
   yad2Filters?: ScanFilters;
   /** Extra hand-picked Yad2 search links (advanced). */
   yad2Searches?: SavedSearch[];
+  /** Which sites the automatic scan covers (default: Yad2 only). */
+  scanSources?: ScanSource[];
 }
 
-export interface ScanStatus {
+export interface SourceRunStatus {
   status: 'running' | 'succeeded' | 'failed';
-  startedAt: string;
-  finishedAt?: string;
   runId?: string;
+  finishedAt?: string;
   found?: number;
   /** Results that passed the filters (before skipping ones already saved). */
   matched?: number;
   added?: number;
   error?: string;
+}
+
+/** Latest scan. Top-level numbers are totals across `sources`. */
+export interface ScanStatus extends SourceRunStatus {
+  startedAt: string;
+  sources?: Partial<Record<ScanSource, SourceRunStatus>>;
 }
 
 /** What the client receives from GET /api/settings. */

@@ -150,7 +150,7 @@ export class PushService {
     const n = added.length;
     return background(
       this.sendTo([...USERS], (lang) => ({
-        title: lang === 'he' ? `נמצאו ${n} דירות חדשות ביד2` : `${n} new Yad2 listing${n > 1 ? 's' : ''}`,
+        title: lang === 'he' ? `נמצאו ${n} דירות חדשות` : `${n} new listing${n > 1 ? 's' : ''} found`,
         body: added.slice(0, 3).map((a) => a.title).join(' · '),
         url: '/match',
         tag: 'scan',

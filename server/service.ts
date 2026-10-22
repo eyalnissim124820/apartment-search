@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   ALL_STATUSES,
+  SCAN_SOURCES,
   CHECKLIST_KEYS,
   PIPELINE,
   USERS,
@@ -268,13 +269,12 @@ export class ApartmentService {
   async importExternal(items: (ApartmentInput & { externalId: string; geo?: Apartment['geo'] })[]): Promise<Apartment[]> {
     const existing = await this.store.list();
     const seen = new Set<string>();
-    for (const a of existing) {
-      if (a.externalId) seen.add(a.externalId);
-      if (a.listingUrl) seen.add(normalizeUrl(a.listingUrl));
-    }
+    const keysOf = (a: Partial<Apartment>) =>
+      [a.externalId, a.listingUrl && normalizeUrl(a.listingUrl), fingerprint(a)].filter(Boolean) as string[];
+    for (const a of existing) keysOf(a).forEach((k) => seen.add(k));
     const added: Apartment[] = [];
     for (const item of items) {
-      const keys = [item.externalId, item.listingUrl && normalizeUrl(item.listingUrl)].filter(Boolean) as string[];
+      const keys = keysOf(item);
       if (!item.title || keys.some((k) => seen.has(k))) continue;
       keys.forEach((k) => seen.add(k));
       const ts = now();
@@ -300,6 +300,16 @@ export class ApartmentService {
     }
     return added;
   }
+}
+
+/**
+ * Same apartment advertised on Yad2 and Madlan: street + number, rooms and price match.
+ * Only used when all of those are known, so different flats in one building don't collide.
+ */
+function fingerprint(a: Partial<Apartment>) {
+  if (!a.address || !/\d/.test(a.address) || a.rooms == null || a.price == null) return undefined;
+  const street = a.address.replace(/[-–־"'״׳.,]/g, ' ').replace(/\s+/g, ' ').trim();
+  return `fp:${street}|${a.rooms}|${a.price}`;
 }
 
 /** Compare listing links without query strings, fragments or trailing slashes. */
@@ -337,6 +347,10 @@ export class SettingsService {
       };
     }
     if ('yad2Filters' in body) s.yad2Filters = parseScanFilters(body.yad2Filters);
+    if ('scanSources' in body) {
+      const list = Array.isArray(body.scanSources) ? body.scanSources : [];
+      s.scanSources = SCAN_SOURCES.filter((x) => list.includes(x));
+    }
     if ('yad2Searches' in body) {
       const list = Array.isArray(body.yad2Searches) ? body.yad2Searches : [];
       s.yad2Searches = list

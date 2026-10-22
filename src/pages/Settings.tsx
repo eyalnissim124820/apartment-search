@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Bell, BellOff, Briefcase, Plus, Radar, RefreshCw, Send, Wallet, X } from 'lucide-react';
-import { USERS, type BudgetBasis, type Features, type SavedSearch, type ScanFilters, type UserId } from '../../shared/types';
+import {
+  SCAN_SOURCES, USERS, type BudgetBasis, type Features, type SavedSearch, type ScanFilters, type ScanSource, type UserId,
+} from '../../shared/types';
 import { SCAN_FEATURES, YAD2_CITIES } from '../../shared/yad2';
 import { useApp } from '../state';
 import { api } from '../lib/api';
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push';
 import { Avatar, FEATURE_ICON } from '../components/ui';
-import { featureKey, userKey } from '../i18n/strings';
+import { featureKey, sourceKey, userKey } from '../i18n/strings';
 import { dateTime } from '../lib/format';
 
 export default function Settings() {
@@ -160,7 +162,16 @@ function Yad2ScanSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings]);
 
-  const save = async (patch: { yad2Filters?: ScanFilters; yad2Searches?: SavedSearch[] }, toast = true) => {
+  const sources: ScanSource[] = settings?.scanSources?.length ? settings.scanSources : ['yad2'];
+  const toggleSource = (src: ScanSource) => {
+    const next = sources.includes(src) ? sources.filter((x) => x !== src) : [...sources, src];
+    if (next.length) save({ scanSources: next }, false);
+  };
+
+  const save = async (
+    patch: { yad2Filters?: ScanFilters; yad2Searches?: SavedSearch[]; scanSources?: ScanSource[] },
+    toast = true,
+  ) => {
     setBusy(true);
     try {
       setSettings(await api.saveSettings(patch));
@@ -219,7 +230,7 @@ function Yad2ScanSection() {
   };
 
   const savedFilters = settings?.yad2Filters;
-  const canRun = !!settings?.scanConfigured && (!!savedFilters?.cities.length || searches.length > 0);
+  const canRun = !!settings?.scanConfigured && (!!savedFilters?.cities.length || (sources.includes('yad2') && searches.length > 0));
 
   return (
     <section className="card mt-4 p-5 grid gap-4">
@@ -230,6 +241,23 @@ function Yad2ScanSection() {
       {settings && !settings.scanConfigured && (
         <p className="rounded-2xl bg-[#FFF3DF] p-3 text-sm text-[#7A4808]">{t('scanNotConfigured')}</p>
       )}
+
+      <div>
+        <span className="field-label">{t('scanSourcesLabel')}</span>
+        <div className="flex gap-2">
+          {SCAN_SOURCES.map((src) => (
+            <button
+              key={src}
+              type="button"
+              disabled={busy}
+              onClick={() => toggleSource(src)}
+              className={`chip !shadow-none flex-1 justify-center ${sources.includes(src) ? 'chip-active' : '!bg-haze'}`}
+            >
+              {t(sourceKey(src))}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div>
         <span className="field-label">{t('scanCities')}</span>
@@ -313,13 +341,22 @@ function Yad2ScanSection() {
       )}
 
       {scan && (
-        <p className={`text-sm ${scan.status === 'failed' ? 'text-[#B42318]' : 'text-ink/60'}`}>
-          {scan.status === 'running'
-            ? t('scanRunning', { time: dateTime(scan.startedAt, lang) })
-            : scan.status === 'failed'
-              ? t('scanFailed', { error: scan.error ?? '' })
+        <div className="grid gap-1 text-sm text-ink/60">
+          <p>
+            {scan.status === 'running'
+              ? t('scanRunning', { time: dateTime(scan.startedAt, lang) })
               : t('scanLast', { time: dateTime(scan.finishedAt, lang), found: scan.found ?? 0, matched: scan.matched ?? scan.found ?? 0, added: scan.added ?? 0 })}
-        </p>
+          </p>
+          {Object.entries(scan.sources ?? {}).map(([src, r]) => (
+            <p key={src} className={r!.status === 'failed' ? 'text-[#B42318]' : ''}>
+              {r!.status === 'running'
+                ? t('scanSourceRunning', { source: t(sourceKey(src as ScanSource)) })
+                : r!.status === 'failed'
+                  ? t('scanSourceFailed', { source: t(sourceKey(src as ScanSource)), error: r!.error ?? '' })
+                  : t('scanSourceDone', { source: t(sourceKey(src as ScanSource)), found: r!.found ?? 0, matched: r!.matched ?? 0, added: r!.added ?? 0 })}
+            </p>
+          ))}
+        </div>
       )}
 
       <button className="btn-light !shadow-none bg-haze" disabled={busy || !canRun || scan?.status === 'running'} onClick={runNow}>

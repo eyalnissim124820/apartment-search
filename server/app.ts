@@ -6,6 +6,7 @@ import { Enricher } from './enrich.js';
 import { importFromText, importFromUrl } from './importer.js';
 import { background } from './background.js';
 import { Yad2Scanner, scanConfigured } from './yad2Scan.js';
+import type { ScanSource } from '../shared/types.js';
 
 /** Build the API. Shared by the local server (server/index.ts) and the Vercel function (api/index.ts). */
 export function createApp() {
@@ -164,6 +165,8 @@ export function createApp() {
   const cronScan = h(async (req) => { requireSecret(req); return startScan(req); });
   api.get('/cron/yad2-scan', cronScan);
   api.post('/cron/yad2-scan', cronScan);
+  api.get('/cron/scan', cronScan);
+  api.post('/cron/scan', cronScan);
 
   /** Apify calls this when a scan run finishes. */
   api.post(
@@ -173,17 +176,18 @@ export function createApp() {
       const body = req.body as { eventData?: { actorRunId?: string }; resource?: { id?: string } };
       const runId = body.eventData?.actorRunId ?? body.resource?.id;
       if (!runId) throw new HttpError(400, 'Missing run id');
+      const source: ScanSource = req.query.source === 'madlan' ? 'madlan' : 'yad2';
       try {
-        const items = await scanner.collect(runId);
+        const items = await scanner.collect(runId, source);
         if (!items) return { ok: true, skipped: true };
-        const matching = await scanner.applyFilters(items);
+        const matching = await scanner.applyFilters(items, source);
         const added = await service.importExternal(matching);
-        await scanner.finish(runId, items.length, matching.length, added.length);
+        await scanner.finish(source, runId, items.length, matching.length, added.length);
         await push.notifyScan(added);
         void background(enricher.enrichMany(added.map((a) => a.id)), 'geo scan');
         return { ok: true, found: items.length, matched: matching.length, added: added.length };
       } catch (err) {
-        await scanner.fail(runId, (err as Error).message);
+        await scanner.fail(source, runId, (err as Error).message);
         throw err;
       }
     }),

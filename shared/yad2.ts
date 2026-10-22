@@ -3,27 +3,28 @@ import type { ApartmentInput, Features, ScanFilters } from './types.js';
 export type { ScanFilters };
 
 /** Cities offered in Settings. Codes are the CBS settlement codes Yad2 uses in its `city` parameter. */
-export const YAD2_CITIES: { code: string; he: string; en: string }[] = [
-  { code: '5000', he: 'תל אביב יפו', en: 'Tel Aviv-Yafo' },
-  { code: '8600', he: 'רמת גן', en: 'Ramat Gan' },
-  { code: '6300', he: 'גבעתיים', en: 'Givatayim' },
-  { code: '6400', he: 'הרצליה', en: 'Herzliya' },
-  { code: '2650', he: 'רמת השרון', en: 'Ramat HaSharon' },
-  { code: '6600', he: 'חולון', en: 'Holon' },
-  { code: '6200', he: 'בת ים', en: 'Bat Yam' },
-  { code: '2620', he: 'קריית אונו', en: 'Kiryat Ono' },
-  { code: '681', he: 'גבעת שמואל', en: "Giv'at Shmuel" },
-  { code: '7900', he: 'פתח תקווה', en: 'Petah Tikva' },
-  { code: '8300', he: 'ראשון לציון', en: 'Rishon LeZion' },
-  { code: '8700', he: 'רעננה', en: "Ra'anana" },
-  { code: '6900', he: 'כפר סבא', en: 'Kfar Saba' },
-  { code: '9700', he: 'הוד השרון', en: 'Hod HaSharon' },
-  { code: '7400', he: 'נתניה', en: 'Netanya' },
-  { code: '8400', he: 'רחובות', en: 'Rehovot' },
-  { code: '1200', he: 'מודיעין', en: "Modi'in" },
-  { code: '3000', he: 'ירושלים', en: 'Jerusalem' },
-  { code: '4000', he: 'חיפה', en: 'Haifa' },
-  { code: '9000', he: 'באר שבע', en: "Be'er Sheva" },
+/** `madlan` is the name the Madlan scraper expects (it matches English or Hebrew names). */
+export const YAD2_CITIES: { code: string; he: string; en: string; madlan: string }[] = [
+  { code: '5000', he: 'תל אביב יפו', en: 'Tel Aviv-Yafo', madlan: 'Tel Aviv' },
+  { code: '8600', he: 'רמת גן', en: 'Ramat Gan', madlan: 'Ramat Gan' },
+  { code: '6300', he: 'גבעתיים', en: 'Givatayim', madlan: 'Givatayim' },
+  { code: '6400', he: 'הרצליה', en: 'Herzliya', madlan: 'Herzliya' },
+  { code: '2650', he: 'רמת השרון', en: 'Ramat HaSharon', madlan: 'Ramat Hasharon' },
+  { code: '6600', he: 'חולון', en: 'Holon', madlan: 'Holon' },
+  { code: '6200', he: 'בת ים', en: 'Bat Yam', madlan: 'Bat Yam' },
+  { code: '2620', he: 'קריית אונו', en: 'Kiryat Ono', madlan: 'Kiryat Ono' },
+  { code: '681', he: 'גבעת שמואל', en: "Giv'at Shmuel", madlan: 'Givat Shmuel' },
+  { code: '7900', he: 'פתח תקווה', en: 'Petah Tikva', madlan: 'Petah Tikva' },
+  { code: '8300', he: 'ראשון לציון', en: 'Rishon LeZion', madlan: 'Rishon Lezion' },
+  { code: '8700', he: 'רעננה', en: "Ra'anana", madlan: 'Raanana' },
+  { code: '6900', he: 'כפר סבא', en: 'Kfar Saba', madlan: 'Kfar Saba' },
+  { code: '9700', he: 'הוד השרון', en: 'Hod HaSharon', madlan: 'Hod Hasharon' },
+  { code: '7400', he: 'נתניה', en: 'Netanya', madlan: 'Netanya' },
+  { code: '8400', he: 'רחובות', en: 'Rehovot', madlan: 'Rehovot' },
+  { code: '1200', he: 'מודיעין', en: "Modi'in", madlan: 'Modiin' },
+  { code: '3000', he: 'ירושלים', en: 'Jerusalem', madlan: 'Jerusalem' },
+  { code: '4000', he: 'חיפה', en: 'Haifa', madlan: 'Haifa' },
+  { code: '9000', he: 'באר שבע', en: "Be'er Sheva", madlan: 'Beer Sheva' },
 ];
 
 /** Features worth filtering on in a search. */
